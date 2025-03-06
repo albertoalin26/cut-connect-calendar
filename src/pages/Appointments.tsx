@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -38,7 +38,7 @@ import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-const appointmentsData = [
+const initialAppointmentsData = [
   {
     id: 1,
     client: "Emma Johnson",
@@ -94,9 +94,32 @@ const Appointments = () => {
   const [view, setView] = useState("day");
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [appointments, setAppointments] = useState(initialAppointmentsData);
+
+  useEffect(() => {
+    const storedAppointments = localStorage.getItem('appointments');
+    if (storedAppointments) {
+      try {
+        const parsedAppointments = JSON.parse(storedAppointments, (key, value) => {
+          if (key === 'date' && value) {
+            return new Date(value);
+          }
+          return value;
+        });
+        setAppointments(parsedAppointments);
+      } catch (error) {
+        console.error("Errore nel parsing degli appuntamenti:", error);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('appointments', JSON.stringify(appointments));
+  }, [appointments]);
 
   const handleDelete = (appointmentId: number) => {
-    const updatedAppointments = appointmentsData.filter(app => app.id !== appointmentId);
+    const updatedAppointments = appointments.filter(app => app.id !== appointmentId);
+    setAppointments(updatedAppointments);
     toast.success("Appuntamento cancellato con successo");
   };
 
@@ -106,6 +129,18 @@ const Appointments = () => {
   };
 
   const handleUpdate = (appointmentId: number, updatedData: any) => {
+    const updatedAppointments = appointments.map(appointment => 
+      appointment.id === appointmentId 
+        ? { 
+            ...appointment, 
+            client: updatedData.client || appointment.client,
+            time: updatedData.time || appointment.time,
+            service: updatedData.service || appointment.service
+          } 
+        : appointment
+    );
+    
+    setAppointments(updatedAppointments);
     setIsEditDialogOpen(false);
     toast.success("Appuntamento aggiornato con successo");
   };
@@ -151,13 +186,18 @@ const Appointments = () => {
   );
 
   const renderTimeSlot = (time: string) => {
-    const appointments = appointmentsData.filter(app => app.time === time);
+    const timeAppointments = appointments.filter(app => 
+      app.time === time && 
+      app.date.getDate() === date.getDate() &&
+      app.date.getMonth() === date.getMonth() &&
+      app.date.getFullYear() === date.getFullYear()
+    );
     
     return (
       <div key={time} className="flex items-start gap-2 py-2 border-t border-border">
         <div className="w-20 text-sm text-muted-foreground pt-2">{time}</div>
         <div className="flex-1">
-          {appointments.map(appointment => (
+          {timeAppointments.map(appointment => (
             <Card key={appointment.id} className="mb-2 appointment-card bg-secondary/50">
               <CardContent className="p-3">
                 <div className="flex items-center justify-between">
@@ -208,11 +248,12 @@ const Appointments = () => {
               {format(day, "EEE d", { locale: it })}
             </div>
             <div className="space-y-1">
-              {appointmentsData
+              {appointments
                 .filter(
                   (appointment) =>
                     appointment.date.getDate() === day.getDate() &&
-                    appointment.date.getMonth() === day.getMonth()
+                    appointment.date.getMonth() === day.getMonth() &&
+                    appointment.date.getFullYear() === day.getFullYear()
                 )
                 .map((appointment) => (
                   <div
@@ -235,6 +276,9 @@ const Appointments = () => {
     const start = startOfMonth(date);
     const end = endOfMonth(date);
     const days = eachDayOfInterval({ start, end });
+    const firstDayOfMonth = start.getDay();
+    
+    const emptyDays = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
 
     return (
       <div className="grid grid-cols-7 gap-1">
@@ -243,11 +287,11 @@ const Appointments = () => {
             {day}
           </div>
         ))}
-        {Array.from({ length: start.getDay() === 0 ? 6 : start.getDay() - 1 }).map((_, i) => (
+        {Array.from({ length: emptyDays }).map((_, i) => (
           <div key={`empty-${i}`} className="p-2 h-24" />
         ))}
         {days.map((day) => {
-          const dayAppointments = appointmentsData.filter(
+          const dayAppointments = appointments.filter(
             (appointment) => 
               appointment.date.getDate() === day.getDate() &&
               appointment.date.getMonth() === day.getMonth() &&
@@ -408,6 +452,10 @@ const Appointments = () => {
                 <Input 
                   defaultValue={selectedAppointment.client}
                   className="mt-1.5"
+                  onChange={(e) => setSelectedAppointment({
+                    ...selectedAppointment,
+                    client: e.target.value
+                  })}
                 />
               </div>
               <div>
@@ -415,6 +463,10 @@ const Appointments = () => {
                 <Input 
                   defaultValue={selectedAppointment.time}
                   className="mt-1.5"
+                  onChange={(e) => setSelectedAppointment({
+                    ...selectedAppointment,
+                    time: e.target.value
+                  })}
                 />
               </div>
               <div>
@@ -422,6 +474,10 @@ const Appointments = () => {
                 <Input 
                   defaultValue={selectedAppointment.service}
                   className="mt-1.5"
+                  onChange={(e) => setSelectedAppointment({
+                    ...selectedAppointment,
+                    service: e.target.value
+                  })}
                 />
               </div>
             </div>
@@ -430,7 +486,7 @@ const Appointments = () => {
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Annulla
             </Button>
-            <Button onClick={() => handleUpdate(selectedAppointment.id, {})}>
+            <Button onClick={() => handleUpdate(selectedAppointment.id, selectedAppointment)}>
               Salva Modifiche
             </Button>
           </DialogFooter>

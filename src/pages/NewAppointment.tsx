@@ -42,40 +42,41 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
+import { it } from "date-fns/locale";
 
-// Appointment form schema
+// Schema del modulo per l'appuntamento
 const appointmentFormSchema = z.object({
-  client: z.string().min(2, { message: "Client name is required" }),
-  service: z.string().min(1, { message: "Service is required" }),
-  date: z.date({ required_error: "Appointment date is required" }),
-  time: z.string().min(1, { message: "Appointment time is required" }),
-  duration: z.string().min(1, { message: "Duration is required" }),
+  client: z.string().min(2, { message: "Il nome del cliente è obbligatorio" }),
+  service: z.string().min(1, { message: "Il servizio è obbligatorio" }),
+  date: z.date({ required_error: "La data dell'appuntamento è obbligatoria" }),
+  time: z.string().min(1, { message: "L'orario dell'appuntamento è obbligatorio" }),
+  duration: z.string().min(1, { message: "La durata è obbligatoria" }),
   notes: z.string().optional(),
 });
 
-// Mock data for services and time slots
+// Dati di esempio per servizi e fasce orarie
 const services = [
-  { id: 1, name: "Haircut", duration: "30 min", price: "$35" },
-  { id: 2, name: "Haircut & Styling", duration: "45 min", price: "$50" },
-  { id: 3, name: "Hair Coloring", duration: "2 hours", price: "$120" },
-  { id: 4, name: "Highlights", duration: "1.5 hours", price: "$100" },
-  { id: 5, name: "Blowout", duration: "30 min", price: "$30" },
-  { id: 6, name: "Hair Treatment", duration: "1 hour", price: "$65" },
-  { id: 7, name: "Beard Trim", duration: "15 min", price: "$20" },
+  { id: 1, name: "Taglio", duration: "30 min", price: "€35" },
+  { id: 2, name: "Taglio & Piega", duration: "45 min", price: "€50" },
+  { id: 3, name: "Colorazione", duration: "2 ore", price: "€120" },
+  { id: 4, name: "Meches", duration: "1.5 ore", price: "€100" },
+  { id: 5, name: "Piega", duration: "30 min", price: "€30" },
+  { id: 6, name: "Trattamento Capelli", duration: "1 ora", price: "€65" },
+  { id: 7, name: "Barba", duration: "15 min", price: "€20" },
 ];
 
 const timeSlots = [
-  "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", 
-  "11:30 AM", "12:00 PM", "12:30 PM", "1:00 PM", "1:30 PM", 
-  "2:00 PM", "2:30 PM", "3:00 PM", "3:30 PM", "4:00 PM", 
-  "4:30 PM", "5:00 PM", "5:30 PM"
+  "9:00", "9:30", "10:00", "10:30", "11:00", 
+  "11:30", "12:00", "12:30", "13:00", "13:30", 
+  "14:00", "14:30", "15:00", "15:30", "16:00", 
+  "16:30", "17:00", "17:30", "18:00"
 ];
 
 const durations = [
-  "15 min", "30 min", "45 min", "1 hour", "1.5 hours", "2 hours", "2.5 hours", "3 hours"
+  "15 min", "30 min", "45 min", "1 ora", "1.5 ore", "2 ore", "2.5 ore", "3 ore"
 ];
 
-// Mock clients
+// Clienti di esempio
 const clients = [
   { id: 1, name: "Emma Johnson", phone: "555-1234", email: "emma@example.com" },
   { id: 2, name: "Michael Smith", phone: "555-5678", email: "michael@example.com" },
@@ -94,12 +95,48 @@ const NewAppointment = () => {
     resolver: zodResolver(appointmentFormSchema),
     defaultValues: {
       notes: "",
+      date: new Date(),
     },
   });
 
   const onSubmit = (data: FormData) => {
-    console.log("Appointment data:", data);
-    toast.success("Appointment created successfully!");
+    console.log("Dati appuntamento:", data);
+    
+    // Recupera gli appuntamenti esistenti
+    let existingAppointments = [];
+    const storedAppointments = localStorage.getItem('appointments');
+    
+    if (storedAppointments) {
+      try {
+        existingAppointments = JSON.parse(storedAppointments, (key, value) => {
+          if (key === 'date' && value) {
+            return new Date(value);
+          }
+          return value;
+        });
+      } catch (error) {
+        console.error("Errore nel recuperare gli appuntamenti:", error);
+      }
+    }
+    
+    // Crea un nuovo appuntamento
+    const newAppointment = {
+      id: Date.now(), // ID univoco basato sul timestamp
+      client: data.client,
+      service: data.service,
+      duration: data.duration,
+      time: data.time,
+      status: "confermato",
+      avatar: data.client.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2),
+      date: data.date,
+      notes: data.notes || '',
+    };
+    
+    // Aggiunge il nuovo appuntamento e salva nel localStorage
+    const updatedAppointments = [...existingAppointments, newAppointment];
+    localStorage.setItem('appointments', JSON.stringify(updatedAppointments));
+    
+    toast.success("Appuntamento creato con successo!");
     navigate("/appointments");
   };
 
@@ -119,17 +156,17 @@ const NewAppointment = () => {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">New Appointment</h2>
-          <p className="text-muted-foreground">Schedule a new appointment</p>
+          <h2 className="text-3xl font-bold tracking-tight">Nuovo Appuntamento</h2>
+          <p className="text-muted-foreground">Pianifica un nuovo appuntamento</p>
         </div>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
         <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle>Appointment Details</CardTitle>
+            <CardTitle>Dettagli Appuntamento</CardTitle>
             <CardDescription>
-              Enter the appointment information below
+              Inserisci le informazioni dell'appuntamento
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -141,12 +178,12 @@ const NewAppointment = () => {
                     name="client"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Client</FormLabel>
+                        <FormLabel>Cliente</FormLabel>
                         <div className="space-y-2">
                           <div className="flex items-center">
                             <User className="mr-2 h-4 w-4 text-muted-foreground" />
                             <Input 
-                              placeholder="Search clients or enter new name" 
+                              placeholder="Cerca clienti o inserisci un nuovo nome" 
                               value={searchTerm}
                               onChange={e => {
                                 setSearchTerm(e.target.value);
@@ -173,7 +210,7 @@ const NewAppointment = () => {
                                 ))
                               ) : (
                                 <div className="p-2 text-muted-foreground text-sm">
-                                  No clients found. Use this name to create a new client.
+                                  Nessun cliente trovato. Usa questo nome per creare un nuovo cliente.
                                 </div>
                               )}
                             </div>
@@ -189,13 +226,13 @@ const NewAppointment = () => {
                     name="service"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Service</FormLabel>
+                        <FormLabel>Servizio</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <div className="flex items-center gap-2">
                                 <Scissors className="h-4 w-4 text-muted-foreground" />
-                                <SelectValue placeholder="Select a service" />
+                                <SelectValue placeholder="Seleziona un servizio" />
                               </div>
                             </SelectTrigger>
                           </FormControl>
@@ -223,7 +260,7 @@ const NewAppointment = () => {
                       name="date"
                       render={({ field }) => (
                         <FormItem className="flex flex-col">
-                          <FormLabel>Date</FormLabel>
+                          <FormLabel>Data</FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
@@ -236,9 +273,9 @@ const NewAppointment = () => {
                                 >
                                   <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
                                   {field.value ? (
-                                    format(field.value, "PPP")
+                                    format(field.value, "PPP", {locale: it})
                                   ) : (
-                                    <span>Pick a date</span>
+                                    <span>Seleziona una data</span>
                                   )}
                                 </Button>
                               </FormControl>
@@ -250,6 +287,7 @@ const NewAppointment = () => {
                                 onSelect={field.onChange}
                                 initialFocus
                                 className="pointer-events-auto"
+                                locale={it}
                               />
                             </PopoverContent>
                           </Popover>
@@ -263,13 +301,13 @@ const NewAppointment = () => {
                       name="time"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Time</FormLabel>
+                          <FormLabel>Orario</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
                               <SelectTrigger>
                                 <div className="flex items-center gap-2">
                                   <Clock className="h-4 w-4 text-muted-foreground" />
-                                  <SelectValue placeholder="Select a time" />
+                                  <SelectValue placeholder="Seleziona un orario" />
                                 </div>
                               </SelectTrigger>
                             </FormControl>
@@ -292,13 +330,13 @@ const NewAppointment = () => {
                     name="duration"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Duration</FormLabel>
+                        <FormLabel>Durata</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <div className="flex items-center gap-2">
                                 <Clock className="h-4 w-4 text-muted-foreground" />
-                                <SelectValue placeholder="Select duration" />
+                                <SelectValue placeholder="Seleziona la durata" />
                               </div>
                             </SelectTrigger>
                           </FormControl>
@@ -320,10 +358,10 @@ const NewAppointment = () => {
                     name="notes"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Notes</FormLabel>
+                        <FormLabel>Note</FormLabel>
                         <FormControl>
                           <Textarea 
-                            placeholder="Add any special instructions or notes"
+                            placeholder="Aggiungi istruzioni o note speciali"
                             className="resize-none"
                             {...field}
                           />
@@ -336,10 +374,10 @@ const NewAppointment = () => {
 
                 <div className="flex justify-end gap-4">
                   <Button type="button" variant="outline" onClick={() => navigate("/appointments")}>
-                    Cancel
+                    Annulla
                   </Button>
                   <Button type="submit">
-                    Save Appointment
+                    Salva Appuntamento
                   </Button>
                 </div>
               </form>
@@ -349,13 +387,13 @@ const NewAppointment = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Quick Information</CardTitle>
+            <CardTitle>Informazioni Rapide</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <h4 className="font-medium text-sm mb-1">Service Categories</h4>
+              <h4 className="font-medium text-sm mb-1">Categorie di Servizi</h4>
               <div className="space-y-2">
-                {["Haircuts", "Styling", "Color", "Treatments"].map((category) => (
+                {["Tagli", "Styling", "Colorazione", "Trattamenti"].map((category) => (
                   <div key={category} className="flex items-center gap-2">
                     <Scissors className="h-4 w-4 text-primary" />
                     <span className="text-sm">{category}</span>
@@ -364,18 +402,18 @@ const NewAppointment = () => {
               </div>
             </div>
             <div>
-              <h4 className="font-medium text-sm mb-1">Working Hours</h4>
+              <h4 className="font-medium text-sm mb-1">Orari di Lavoro</h4>
               <div className="text-sm text-muted-foreground space-y-1">
-                <p>Monday - Friday: 9:00 AM - 6:00 PM</p>
-                <p>Saturday: 10:00 AM - 4:00 PM</p>
-                <p>Sunday: Closed</p>
+                <p>Lunedì - Venerdì: 9:00 - 18:00</p>
+                <p>Sabato: 10:00 - 16:00</p>
+                <p>Domenica: Chiuso</p>
               </div>
             </div>
             <div>
-              <h4 className="font-medium text-sm mb-1">Need Help?</h4>
+              <h4 className="font-medium text-sm mb-1">Hai bisogno di aiuto?</h4>
               <p className="text-sm text-muted-foreground">
-                Double-check availability before scheduling. For complex bookings, 
-                please contact the salon directly.
+                Controlla la disponibilità prima di programmare. Per prenotazioni 
+                complesse, contatta direttamente il salone.
               </p>
             </div>
           </CardContent>
