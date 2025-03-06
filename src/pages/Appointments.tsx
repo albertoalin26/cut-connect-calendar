@@ -13,56 +13,61 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, Clock, Plus, Scissors } from "lucide-react";
-import { format, addDays } from "date-fns";
+import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
+import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 
-// Mock data for appointments
+// Dati di esempio per gli appuntamenti
 const appointmentsData = [
   {
     id: 1,
     client: "Emma Johnson",
-    service: "Haircut & Styling",
+    service: "Taglio & Piega",
     duration: "45 min",
-    time: "09:00 AM",
-    status: "confirmed",
+    time: "09:00",
+    status: "confermato",
     avatar: "EJ",
+    date: new Date(2023, 6, 15),
   },
   {
     id: 2,
     client: "Michael Smith",
-    service: "Hair Coloring",
-    duration: "2 hours",
-    time: "11:30 AM",
-    status: "confirmed",
+    service: "Colorazione",
+    duration: "2 ore",
+    time: "11:30",
+    status: "confermato",
     avatar: "MS",
+    date: new Date(2023, 6, 15),
   },
   {
     id: 3,
     client: "Sophia Garcia",
-    service: "Blowout",
+    service: "Piega",
     duration: "30 min",
-    time: "02:15 PM",
-    status: "pending",
+    time: "14:15",
+    status: "in attesa",
     avatar: "SG",
+    date: new Date(2023, 6, 16),
   },
   {
     id: 4,
     client: "Daniel Brown",
-    service: "Haircut & Beard Trim",
-    duration: "1 hour",
-    time: "04:45 PM",
-    status: "confirmed",
+    service: "Taglio & Barba",
+    duration: "1 ora",
+    time: "16:45",
+    status: "confermato",
     avatar: "DB",
+    date: new Date(2023, 6, 17),
   },
 ];
 
-const timeSlots = [
-  "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", 
-  "11:30 AM", "12:00 PM", "12:30 PM", "1:00 PM", "1:30 PM", 
-  "2:00 PM", "2:30 PM", "3:00 PM", "3:30 PM", "4:00 PM", 
-  "4:30 PM", "5:00 PM", "5:30 PM", "6:00 PM"
+const fasce_orarie = [
+  "9:00", "9:30", "10:00", "10:30", "11:00", 
+  "11:30", "12:00", "12:30", "13:00", "13:30", 
+  "14:00", "14:30", "15:00", "15:30", "16:00", 
+  "16:30", "17:00", "17:30", "18:00"
 ];
 
 const Appointments = () => {
@@ -95,7 +100,7 @@ const Appointments = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge 
-                      variant={appointment.status === "confirmed" ? "default" : "outline"}
+                      variant={appointment.status === "confermato" ? "default" : "outline"}
                       className="text-xs"
                     >
                       {appointment.status}
@@ -114,25 +119,77 @@ const Appointments = () => {
     );
   };
 
+  const renderMonthlyView = () => {
+    const start = startOfMonth(date);
+    const end = endOfMonth(date);
+    const days = eachDayOfInterval({ start, end });
+
+    return (
+      <div className="grid grid-cols-7 gap-1">
+        {["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"].map((day) => (
+          <div key={day} className="text-center font-medium p-2 text-sm">
+            {day}
+          </div>
+        ))}
+        {Array.from({ length: start.getDay() === 0 ? 6 : start.getDay() - 1 }).map((_, i) => (
+          <div key={`empty-${i}`} className="p-2 h-24" />
+        ))}
+        {days.map((day) => {
+          const dayAppointments = appointmentsData.filter(
+            (appointment) => 
+              appointment.date.getDate() === day.getDate() &&
+              appointment.date.getMonth() === day.getMonth() &&
+              appointment.date.getFullYear() === day.getFullYear()
+          );
+          
+          return (
+            <div 
+              key={day.toString()} 
+              className={`border rounded-md p-1 h-24 overflow-y-auto ${
+                day.getDate() === new Date().getDate() && 
+                day.getMonth() === new Date().getMonth() &&
+                day.getFullYear() === new Date().getFullYear()
+                  ? "bg-accent/30"
+                  : ""
+              }`}
+            >
+              <div className="text-right text-sm font-medium mb-1">
+                {format(day, "d", { locale: it })}
+              </div>
+              {dayAppointments.map((appointment) => (
+                <div 
+                  key={appointment.id}
+                  className="text-xs p-1 mb-1 rounded bg-primary/10 truncate"
+                >
+                  {appointment.time} - {appointment.client}
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8 animate-slide-in">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Appointments</h2>
-          <p className="text-muted-foreground">Manage your salon appointments</p>
+          <h2 className="text-3xl font-bold tracking-tight">Appuntamenti</h2>
+          <p className="text-muted-foreground">Gestisci gli appuntamenti del salone</p>
         </div>
         <Button onClick={() => navigate("/appointments/new")} className="flex items-center gap-2">
           <Plus className="h-4 w-4" />
-          <span>New Appointment</span>
+          <span>Nuovo Appuntamento</span>
         </Button>
       </div>
 
       <Tabs defaultValue="day" value={view} onValueChange={setView} className="space-y-4">
         <div className="flex justify-between items-center">
           <TabsList>
-            <TabsTrigger value="day">Day</TabsTrigger>
-            <TabsTrigger value="week">Week</TabsTrigger>
-            <TabsTrigger value="month">Month</TabsTrigger>
+            <TabsTrigger value="day">Giorno</TabsTrigger>
+            <TabsTrigger value="week">Settimana</TabsTrigger>
+            <TabsTrigger value="month">Mese</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-4">
             <div className="flex items-center">
@@ -154,7 +211,7 @@ const Appointments = () => {
               </Button>
             </div>
             <div className="text-sm font-medium">
-              {format(date, "MMMM d, yyyy")}
+              {format(date, "d MMMM yyyy", { locale: it })}
             </div>
           </div>
         </div>
@@ -164,14 +221,14 @@ const Appointments = () => {
             <div className="md:col-span-2 space-y-6">
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle>Daily Schedule</CardTitle>
+                  <CardTitle>Programma Giornaliero</CardTitle>
                   <CardDescription>
-                    Appointments for {format(date, "MMMM d, yyyy")}
+                    Appuntamenti per il {format(date, "d MMMM yyyy", { locale: it })}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="max-h-[600px] overflow-y-auto">
                   <div className="space-y-1">
-                    {timeSlots.map(renderTimeSlot)}
+                    {fasce_orarie.map(renderTimeSlot)}
                   </div>
                 </CardContent>
               </Card>
@@ -179,7 +236,7 @@ const Appointments = () => {
             <div>
               <Card>
                 <CardHeader>
-                  <CardTitle>Calendar</CardTitle>
+                  <CardTitle>Calendario</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Calendar
@@ -187,6 +244,7 @@ const Appointments = () => {
                     selected={date}
                     onSelect={(newDate) => newDate && setDate(newDate)}
                     className="pointer-events-auto"
+                    locale={it}
                   />
                 </CardContent>
               </Card>
@@ -197,14 +255,14 @@ const Appointments = () => {
         <TabsContent value="week">
           <Card>
             <CardHeader>
-              <CardTitle>Weekly View</CardTitle>
+              <CardTitle>Vista Settimanale</CardTitle>
               <CardDescription>
-                View your appointments for the week of {format(date, "MMMM d, yyyy")}
+                Visualizza gli appuntamenti per la settimana dal {format(date, "d MMMM yyyy", { locale: it })}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-center p-12 text-muted-foreground">
-                <p>Weekly view will be implemented in the next update.</p>
+                <p>La vista settimanale sarà implementata nel prossimo aggiornamento.</p>
               </div>
             </CardContent>
           </Card>
@@ -213,15 +271,13 @@ const Appointments = () => {
         <TabsContent value="month">
           <Card>
             <CardHeader>
-              <CardTitle>Monthly View</CardTitle>
+              <CardTitle>Vista Mensile</CardTitle>
               <CardDescription>
-                View your appointments for {format(date, "MMMM yyyy")}
+                Visualizza gli appuntamenti per {format(date, "MMMM yyyy", { locale: it })}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center p-12 text-muted-foreground">
-                <p>Monthly view will be implemented in the next update.</p>
-              </div>
+              {renderMonthlyView()}
             </CardContent>
           </Card>
         </TabsContent>

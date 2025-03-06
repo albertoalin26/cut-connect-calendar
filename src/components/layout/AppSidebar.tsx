@@ -16,7 +16,7 @@ import {
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
-// Navigation items for the sidebar
+// Elementi di navigazione per la sidebar
 const items = [
   {
     title: "Dashboard",
@@ -24,27 +24,27 @@ const items = [
     icon: Home,
   },
   {
-    title: "Appointments",
+    title: "Appuntamenti",
     path: "/appointments",
     icon: Calendar,
   },
   {
-    title: "Clients",
+    title: "Clienti",
     path: "/clients",
     icon: Users,
   },
   {
-    title: "Services",
+    title: "Servizi",
     path: "/services",
     icon: Scissors,
   },
   {
-    title: "Working Hours",
+    title: "Orari di Lavoro",
     path: "/working-hours",
     icon: Clock,
   },
   {
-    title: "Settings",
+    title: "Impostazioni",
     path: "/settings",
     icon: Settings,
   },
@@ -58,13 +58,13 @@ export function AppSidebar() {
       <SidebarHeader className="px-6 py-5 flex items-center">
         <Link to="/" className="flex items-center gap-2">
           <Scissors className="h-6 w-6 text-primary" />
-          <span className="font-semibold text-xl">SalonSync</span>
+          <span className="font-semibold text-xl">ParrucchierePro</span>
         </Link>
         <SidebarTrigger />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Salon Management</SidebarGroupLabel>
+          <SidebarGroupLabel>Gestione Salone</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -88,7 +88,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="px-6 py-4">
         <div className="text-xs text-muted-foreground">
-          SalonSync v1.0.0
+          ParrucchierePro v1.0.0
         </div>
       </SidebarFooter>
     </Sidebar>

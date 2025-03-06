@@ -10,7 +10,7 @@ export function TopBar() {
   return (
     <div className="border-b border-border h-16 px-6 flex items-center justify-between">
       <div>
-        <h1 className="text-xl font-medium">Welcome, Alex</h1>
+        <h1 className="text-xl font-medium">Benvenuto, Alex</h1>
       </div>
       <div className="flex items-center gap-4">
         <Button 
@@ -20,13 +20,13 @@ export function TopBar() {
           onClick={() => navigate("/appointments/new")}
         >
           <Plus className="h-4 w-4" />
-          <span>New Appointment</span>
+          <span>Nuovo Appuntamento</span>
         </Button>
         <Button variant="ghost" size="icon" className="rounded-full">
           <Bell className="h-5 w-5" />
         </Button>
         <Avatar className="h-9 w-9">
-          <AvatarImage src="https://github.com/shadcn.png" alt="User" />
+          <AvatarImage src="https://github.com/shadcn.png" alt="Utente" />
           <AvatarFallback>A</AvatarFallback>
         </Avatar>
       </div>
