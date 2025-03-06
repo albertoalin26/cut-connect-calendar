@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -44,7 +43,6 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { it } from "date-fns/locale";
 
-// Schema del modulo per l'appuntamento
 const appointmentFormSchema = z.object({
   client: z.string().min(2, { message: "Il nome del cliente è obbligatorio" }),
   service: z.string().min(1, { message: "Il servizio è obbligatorio" }),
@@ -54,7 +52,6 @@ const appointmentFormSchema = z.object({
   notes: z.string().optional(),
 });
 
-// Dati di esempio per servizi e fasce orarie
 const services = [
   { id: 1, name: "Taglio", duration: "30 min", price: "€35" },
   { id: 2, name: "Taglio & Piega", duration: "45 min", price: "€50" },
@@ -76,7 +73,6 @@ const durations = [
   "15 min", "30 min", "45 min", "1 ora", "1.5 ore", "2 ore", "2.5 ore", "3 ore"
 ];
 
-// Clienti di esempio
 const clients = [
   { id: 1, name: "Emma Johnson", phone: "555-1234", email: "emma@example.com" },
   { id: 2, name: "Michael Smith", phone: "555-5678", email: "michael@example.com" },
@@ -90,6 +86,10 @@ type FormData = z.infer<typeof appointmentFormSchema>;
 const NewAppointment = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
+  const [localClients, setLocalClients] = useState(() => {
+    const storedClients = localStorage.getItem('clients');
+    return storedClients ? JSON.parse(storedClients) : clients;
+  });
   
   const form = useForm<FormData>({
     resolver: zodResolver(appointmentFormSchema),
@@ -102,7 +102,6 @@ const NewAppointment = () => {
   const onSubmit = (data: FormData) => {
     console.log("Dati appuntamento:", data);
     
-    // Recupera gli appuntamenti esistenti
     let existingAppointments = [];
     const storedAppointments = localStorage.getItem('appointments');
     
@@ -119,9 +118,8 @@ const NewAppointment = () => {
       }
     }
     
-    // Crea un nuovo appuntamento
     const newAppointment = {
-      id: Date.now(), // ID univoco basato sul timestamp
+      id: Date.now(),
       client: data.client,
       service: data.service,
       duration: data.duration,
@@ -132,7 +130,23 @@ const NewAppointment = () => {
       notes: data.notes || '',
     };
     
-    // Aggiunge il nuovo appuntamento e salva nel localStorage
+    const isNewClient = !localClients.some(
+      (client) => client.name.toLowerCase() === data.client.toLowerCase()
+    );
+
+    if (isNewClient) {
+      const newClient = {
+        id: Date.now(),
+        name: data.client,
+        phone: "",
+        email: "",
+      };
+      
+      const updatedClients = [...localClients, newClient];
+      setLocalClients(updatedClients);
+      localStorage.setItem('clients', JSON.stringify(updatedClients));
+    }
+
     const updatedAppointments = [...existingAppointments, newAppointment];
     localStorage.setItem('appointments', JSON.stringify(updatedAppointments));
     
@@ -140,7 +154,7 @@ const NewAppointment = () => {
     navigate("/appointments");
   };
 
-  const filteredClients = clients.filter(client => 
+  const filteredClients = localClients.filter(client => 
     client.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 

@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import WeeklyCalendarView from '@/components/calendar/WeeklyCalendarView';
 
 const initialAppointmentsData = [
   {
@@ -236,39 +237,18 @@ const Appointments = () => {
   };
 
   const renderWeeklyView = () => {
-    const startDate = startOfWeek(date, { locale: it });
-    const endDate = endOfWeek(date, { locale: it });
-    const days = eachDayOfInterval({ start: startDate, end: endDate });
-
     return (
-      <div className="grid grid-cols-7 gap-2">
-        {days.map((day) => (
-          <div key={day.toString()} className="min-h-[200px]">
-            <div className="text-center font-medium p-2 text-sm sticky top-0 bg-background">
-              {format(day, "EEE d", { locale: it })}
-            </div>
-            <div className="space-y-1">
-              {appointments
-                .filter(
-                  (appointment) =>
-                    appointment.date.getDate() === day.getDate() &&
-                    appointment.date.getMonth() === day.getMonth() &&
-                    appointment.date.getFullYear() === day.getFullYear()
-                )
-                .map((appointment) => (
-                  <div
-                    key={appointment.id}
-                    className="p-2 text-xs bg-secondary/50 rounded-md"
-                  >
-                    <div className="font-medium">{appointment.time}</div>
-                    <div>{appointment.client}</div>
-                    <div className="text-muted-foreground">{appointment.service}</div>
-                  </div>
-                ))}
-            </div>
-          </div>
-        ))}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Vista Settimanale</CardTitle>
+          <CardDescription>
+            Visualizza gli appuntamenti per la settimana dal {format(date, "d MMMM yyyy", { locale: it })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <WeeklyCalendarView date={date} appointments={appointments} />
+        </CardContent>
+      </Card>
     );
   };
 
