@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -9,17 +8,36 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Clock, Plus, Scissors } from "lucide-react";
-import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
+import { ChevronLeft, ChevronRight, Clock, Pencil, Plus, Scissors, Trash2 } from "lucide-react";
+import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, eachWeekOfInterval, startOfWeek, endOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
-// Dati di esempio per gli appuntamenti
 const appointmentsData = [
   {
     id: 1,
@@ -74,6 +92,63 @@ const Appointments = () => {
   const navigate = useNavigate();
   const [date, setDate] = useState<Date>(new Date());
   const [view, setView] = useState("day");
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const handleDelete = (appointmentId: number) => {
+    const updatedAppointments = appointmentsData.filter(app => app.id !== appointmentId);
+    toast.success("Appuntamento cancellato con successo");
+  };
+
+  const handleEdit = (appointment: any) => {
+    setSelectedAppointment(appointment);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdate = (appointmentId: number, updatedData: any) => {
+    setIsEditDialogOpen(false);
+    toast.success("Appuntamento aggiornato con successo");
+  };
+
+  const renderAppointmentActions = (appointment: any) => (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleEdit(appointment);
+        }}
+      >
+        <Pencil className="h-4 w-4" />
+      </Button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azione non può essere annullata. L'appuntamento verrà eliminato permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleDelete(appointment.id)}>
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
 
   const renderTimeSlot = (time: string) => {
     const appointments = appointmentsData.filter(app => app.time === time);
@@ -109,12 +184,49 @@ const Appointments = () => {
                       <Clock className="h-3 w-3 mr-1" />
                       {appointment.duration}
                     </div>
+                    {renderAppointmentActions(appointment)}
                   </div>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
+      </div>
+    );
+  };
+
+  const renderWeeklyView = () => {
+    const startDate = startOfWeek(date, { locale: it });
+    const endDate = endOfWeek(date, { locale: it });
+    const days = eachDayOfInterval({ start: startDate, end: endDate });
+
+    return (
+      <div className="grid grid-cols-7 gap-2">
+        {days.map((day) => (
+          <div key={day.toString()} className="min-h-[200px]">
+            <div className="text-center font-medium p-2 text-sm sticky top-0 bg-background">
+              {format(day, "EEE d", { locale: it })}
+            </div>
+            <div className="space-y-1">
+              {appointmentsData
+                .filter(
+                  (appointment) =>
+                    appointment.date.getDate() === day.getDate() &&
+                    appointment.date.getMonth() === day.getMonth()
+                )
+                .map((appointment) => (
+                  <div
+                    key={appointment.id}
+                    className="p-2 text-xs bg-secondary/50 rounded-md"
+                  >
+                    <div className="font-medium">{appointment.time}</div>
+                    <div>{appointment.client}</div>
+                    <div className="text-muted-foreground">{appointment.service}</div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        ))}
       </div>
     );
   };
@@ -261,9 +373,7 @@ const Appointments = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center p-12 text-muted-foreground">
-                <p>La vista settimanale sarà implementata nel prossimo aggiornamento.</p>
-              </div>
+              {renderWeeklyView()}
             </CardContent>
           </Card>
         </TabsContent>
@@ -282,6 +392,50 @@ const Appointments = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifica Appuntamento</DialogTitle>
+            <DialogDescription>
+              Modifica i dettagli dell'appuntamento
+            </DialogDescription>
+          </DialogHeader>
+          {selectedAppointment && (
+            <div className="space-y-4">
+              <div>
+                <Label>Cliente</Label>
+                <Input 
+                  defaultValue={selectedAppointment.client}
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label>Orario</Label>
+                <Input 
+                  defaultValue={selectedAppointment.time}
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label>Servizio</Label>
+                <Input 
+                  defaultValue={selectedAppointment.service}
+                  className="mt-1.5"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Annulla
+            </Button>
+            <Button onClick={() => handleUpdate(selectedAppointment.id, {})}>
+              Salva Modifiche
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
