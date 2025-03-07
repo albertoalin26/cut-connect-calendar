@@ -18,7 +18,7 @@ serve(async (req) => {
     // Create a Supabase client with the Admin key
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',  // Important: use service role key for admin operations
       {
         auth: {
           autoRefreshToken: false,
@@ -31,27 +31,34 @@ serve(async (req) => {
     const clientEmail = "alberto@cliente.it";
     const genericPassword = "Password123!";
 
-    // Create admin user
-    const { data: adminData, error: adminError } = await supabaseAdmin.auth.signUp({
+    // Delete existing users if they exist (to avoid conflicts)
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    
+    for (const user of existingUsers?.users || []) {
+      if (user.email === adminEmail || user.email === clientEmail) {
+        await supabaseAdmin.auth.admin.deleteUser(user.id);
+      }
+    }
+    
+    // Create admin user with auto-confirmation
+    const { data: adminData, error: adminError } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: genericPassword,
-      options: {
-        data: {
-          first_name: "Achi",
-          last_name: "Parrucchiere"
-        }
+      email_confirm: true, // Auto-confirm email
+      user_metadata: {
+        first_name: "Achi",
+        last_name: "Parrucchiere"
       }
     });
 
-    // Create client user
-    const { data: clientData, error: clientError } = await supabaseAdmin.auth.signUp({
+    // Create client user with auto-confirmation
+    const { data: clientData, error: clientError } = await supabaseAdmin.auth.admin.createUser({
       email: clientEmail,
       password: genericPassword,
-      options: {
-        data: {
-          first_name: "Alberto",
-          last_name: "Cliente"
-        }
+      email_confirm: true, // Auto-confirm email
+      user_metadata: {
+        first_name: "Alberto",
+        last_name: "Cliente"
       }
     });
 

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -131,6 +132,8 @@ const Auth = () => {
   const createDemoUsers = async () => {
     try {
       setIsCreatingDemoUsers(true);
+      toast.info("Creando utenti demo...");
+      
       const { data, error } = await supabase.functions.invoke('setup-initial-users');
       
       if (error) {
@@ -144,6 +147,7 @@ const Auth = () => {
       if (data.admin) {
         loginForm.setValue('email', data.admin.email);
         loginForm.setValue('password', data.admin.password);
+        toast.info(`Admin: ${data.admin.email} / ${data.admin.password}`);
       }
     } catch (error: any) {
       toast.error(error.message || "Si è verificato un errore durante la creazione degli utenti demo");
@@ -288,7 +292,7 @@ const Auth = () => {
               </Form>
             )}
           </CardContent>
-          <CardFooter className="flex justify-center">
+          <CardFooter className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
               {activeTab === "login"
                 ? "Non hai un account? "
@@ -301,6 +305,21 @@ const Auth = () => {
                 {activeTab === "login" ? "Registrati" : "Accedi"}
               </Button>
             </p>
+            
+            <div className="w-full">
+              <Button 
+                variant="outline" 
+                className="w-full flex items-center gap-2" 
+                onClick={createDemoUsers}
+                disabled={isCreatingDemoUsers}
+              >
+                <UserPlus className="h-4 w-4" />
+                {isCreatingDemoUsers ? "Creazione utenti in corso..." : "Crea utenti demo"}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-1 text-center">
+                Crea un admin (achi@salone.it) e un cliente (alberto@cliente.it)
+              </p>
+            </div>
           </CardFooter>
         </Card>
       </div>
