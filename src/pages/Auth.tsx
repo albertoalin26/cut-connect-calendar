@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -26,7 +25,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Scissors, Mail, Lock, User } from "lucide-react";
+import { Scissors, Mail, Lock, User, UserPlus } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Inserisci un'email valida" }),
@@ -47,9 +46,9 @@ const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
+  const [isCreatingDemoUsers, setIsCreatingDemoUsers] = useState(false);
 
   useEffect(() => {
-    // Check if user is already logged in
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
@@ -126,6 +125,30 @@ const Auth = () => {
       toast.error(error.message || "Si è verificato un errore durante la registrazione");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const createDemoUsers = async () => {
+    try {
+      setIsCreatingDemoUsers(true);
+      const { data, error } = await supabase.functions.invoke('setup-initial-users');
+      
+      if (error) {
+        toast.error(`Errore: ${error.message}`);
+        return;
+      }
+
+      toast.success("Utenti demo creati con successo!");
+      console.log("Demo users created:", data);
+      
+      if (data.admin) {
+        loginForm.setValue('email', data.admin.email);
+        loginForm.setValue('password', data.admin.password);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Si è verificato un errore durante la creazione degli utenti demo");
+    } finally {
+      setIsCreatingDemoUsers(false);
     }
   };
 
