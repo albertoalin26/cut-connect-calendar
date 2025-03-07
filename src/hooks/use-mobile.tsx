@@ -1,6 +1,8 @@
+
 import * as React from "react"
 
-const MOBILE_BREAKPOINT = 768
+// Using a slightly smaller breakpoint to ensure tablets get desktop experience
+const MOBILE_BREAKPOINT = 640
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)

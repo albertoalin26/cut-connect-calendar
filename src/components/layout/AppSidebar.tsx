@@ -12,9 +12,11 @@ import {
   SidebarMenuItem,
   SidebarTrigger,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Elementi di navigazione per la sidebar
 const items = [
@@ -52,15 +54,24 @@ const items = [
 
 export function AppSidebar() {
   const location = useLocation();
+  const isMobile = useIsMobile();
+  const { setOpenMobile } = useSidebar();
+  
+  // Helper function to close the mobile sidebar when a link is clicked
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
   
   return (
     <Sidebar>
       <SidebarHeader className="px-6 py-5 flex items-center">
-        <Link to="/" className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2" onClick={handleNavClick}>
           <Scissors className="h-6 w-6 text-primary" />
           <span className="font-semibold text-xl">ParrucchierePro</span>
         </Link>
-        <SidebarTrigger />
+        {!isMobile && <SidebarTrigger />}
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -72,6 +83,7 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <Link 
                       to={item.path}
+                      onClick={handleNavClick}
                       className={cn(
                         location.pathname === item.path ? "bg-primary/10 text-primary" : ""
                       )}
