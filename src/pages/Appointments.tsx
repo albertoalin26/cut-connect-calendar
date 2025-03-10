@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -31,7 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, Clock, Pencil, Plus, Scissors, Trash2, Mail, User, Calendar as CalendarIcon, Info } from "lucide-react";
-import { format, addDays, parseISO } from "date-fns";
+import { format, addDays, parseISO, eachDayOfInterval, startOfWeek, endOfWeek, isSameDay, setHours, setMinutes } from "date-fns";
 import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
