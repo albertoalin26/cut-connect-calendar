@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -30,13 +31,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Clock, Pencil, Plus, Scissors, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Pencil, Plus, Scissors, Trash2, Mail, User, Calendar as CalendarIcon, Info } from "lucide-react";
 import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, eachWeekOfInterval, startOfWeek, endOfWeek } from "date-fns";
 import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import WeeklyCalendarView from '@/components/calendar/WeeklyCalendarView';
 
 const initialAppointmentsData = [
@@ -95,7 +97,10 @@ const Appointments = () => {
   const [view, setView] = useState("day");
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [appointments, setAppointments] = useState(initialAppointmentsData);
+  const [clients, setClients] = useState<any[]>([]);
+  const [isEmailSending, setIsEmailSending] = useState(false);
 
   useEffect(() => {
     const storedAppointments = localStorage.getItem('appointments');
@@ -112,15 +117,50 @@ const Appointments = () => {
         console.error("Errore nel parsing degli appuntamenti:", error);
       }
     }
+
+    // Load clients
+    const storedClients = localStorage.getItem('clients');
+    if (storedClients) {
+      try {
+        const parsedClients = JSON.parse(storedClients);
+        setClients(parsedClients);
+      } catch (error) {
+        console.error("Errore nel parsing dei clienti:", error);
+      }
+    }
   }, []);
 
   useEffect(() => {
     localStorage.setItem('appointments', JSON.stringify(appointments));
   }, [appointments]);
 
+  const handleViewAppointment = (appointment: any) => {
+    setSelectedAppointment(appointment);
+    setIsViewDialogOpen(true);
+  };
+
   const handleDelete = (appointmentId: number) => {
+    const appointmentToDelete = appointments.find(app => app.id === appointmentId);
+    
+    if (appointmentToDelete) {
+      // Send email notification for cancellation
+      const client = clients.find(c => c.name === appointmentToDelete.client);
+      
+      if (client && client.email) {
+        sendEmailNotification(
+          client.email,
+          appointmentToDelete.client,
+          appointmentToDelete.service,
+          format(new Date(appointmentToDelete.date), "d MMMM yyyy", { locale: it }),
+          appointmentToDelete.time,
+          "cancelled"
+        );
+      }
+    }
+    
     const updatedAppointments = appointments.filter(app => app.id !== appointmentId);
     setAppointments(updatedAppointments);
+    setIsViewDialogOpen(false);
     toast.success("Appuntamento cancellato con successo");
   };
 
@@ -143,7 +183,64 @@ const Appointments = () => {
     
     setAppointments(updatedAppointments);
     setIsEditDialogOpen(false);
+    setIsViewDialogOpen(false);
+    
+    // Get the updated appointment
+    const updatedAppointment = updatedAppointments.find(app => app.id === appointmentId);
+    
+    if (updatedAppointment) {
+      // Send email notification
+      const client = clients.find(c => c.name === updatedAppointment.client);
+      
+      if (client && client.email) {
+        sendEmailNotification(
+          client.email,
+          updatedAppointment.client,
+          updatedAppointment.service,
+          format(new Date(updatedAppointment.date), "d MMMM yyyy", { locale: it }),
+          updatedAppointment.time,
+          "updated"
+        );
+      }
+    }
+    
     toast.success("Appuntamento aggiornato con successo");
+  };
+
+  const sendEmailNotification = async (
+    email: string,
+    clientName: string,
+    service: string,
+    date: string,
+    time: string,
+    action: "new" | "updated" | "cancelled"
+  ) => {
+    try {
+      setIsEmailSending(true);
+      
+      const { data, error } = await supabase.functions.invoke('send-appointment-email', {
+        body: {
+          to: email,
+          clientName,
+          service,
+          date,
+          time,
+          action
+        }
+      });
+
+      if (error) {
+        console.error("Errore nell'invio dell'email:", error);
+        toast.error("Errore nell'invio dell'email di notifica");
+      } else {
+        toast.success("Email di notifica inviata con successo");
+      }
+    } catch (error) {
+      console.error("Errore nell'invio dell'email:", error);
+      toast.error("Errore nell'invio dell'email di notifica");
+    } finally {
+      setIsEmailSending(false);
+    }
   };
 
   const renderAppointmentActions = (appointment: any) => (
@@ -246,7 +343,11 @@ const Appointments = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <WeeklyCalendarView date={date} appointments={appointments} />
+          <WeeklyCalendarView 
+            date={date} 
+            appointments={appointments}
+            onAppointmentClick={handleViewAppointment} 
+          />
         </CardContent>
       </Card>
     );
@@ -389,17 +490,7 @@ const Appointments = () => {
         </TabsContent>
 
         <TabsContent value="week">
-          <Card>
-            <CardHeader>
-              <CardTitle>Vista Settimanale</CardTitle>
-              <CardDescription>
-                Visualizza gli appuntamenti per la settimana dal {format(date, "d MMMM yyyy", { locale: it })}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {renderWeeklyView()}
-            </CardContent>
-          </Card>
+          {renderWeeklyView()}
         </TabsContent>
 
         <TabsContent value="month">
@@ -417,6 +508,7 @@ const Appointments = () => {
         </TabsContent>
       </Tabs>
 
+      {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -469,6 +561,125 @@ const Appointments = () => {
             <Button onClick={() => handleUpdate(selectedAppointment.id, selectedAppointment)}>
               Salva Modifiche
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Appointment Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Dettagli Appuntamento</DialogTitle>
+            <DialogDescription>
+              Visualizza i dettagli dell'appuntamento
+            </DialogDescription>
+          </DialogHeader>
+          {selectedAppointment && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 pb-2 border-b">
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback>{selectedAppointment.avatar}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="font-medium">{selectedAppointment.client}</div>
+                  <Badge variant={selectedAppointment.status === "confermato" ? "default" : "outline"}>
+                    {selectedAppointment.status}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-start gap-2">
+                  <Scissors className="h-4 w-4 mt-0.5 text-primary" />
+                  <div>
+                    <div className="font-medium text-sm">Servizio</div>
+                    <div className="text-sm text-muted-foreground">{selectedAppointment.service}</div>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-2">
+                  <CalendarIcon className="h-4 w-4 mt-0.5 text-primary" />
+                  <div>
+                    <div className="font-medium text-sm">Data</div>
+                    <div className="text-sm text-muted-foreground">
+                      {format(new Date(selectedAppointment.date), "d MMMM yyyy", { locale: it })}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-2">
+                  <Clock className="h-4 w-4 mt-0.5 text-primary" />
+                  <div>
+                    <div className="font-medium text-sm">Orario</div>
+                    <div className="text-sm text-muted-foreground">{selectedAppointment.time} ({selectedAppointment.duration})</div>
+                  </div>
+                </div>
+                
+                {selectedAppointment.notes && (
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 mt-0.5 text-primary" />
+                    <div>
+                      <div className="font-medium text-sm">Note</div>
+                      <div className="text-sm text-muted-foreground">{selectedAppointment.notes}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex sm:justify-between">
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-1" 
+                onClick={() => {
+                  const client = clients.find(c => c.name === selectedAppointment?.client);
+                  if (client && client.email) {
+                    sendEmailNotification(
+                      client.email, 
+                      selectedAppointment.client,
+                      selectedAppointment.service,
+                      format(new Date(selectedAppointment.date), "d MMMM yyyy", { locale: it }),
+                      selectedAppointment.time,
+                      "new"
+                    );
+                  } else {
+                    toast.error("Email del cliente non disponibile");
+                  }
+                }}
+                disabled={isEmailSending}
+              >
+                <Mail className="h-4 w-4" />
+                <span>Invia Promemoria</span>
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="default" size="sm" onClick={() => handleEdit(selectedAppointment)}>
+                Modifica
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm">
+                    Elimina
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Questa azione non può essere annullata. L'appuntamento verrà eliminato permanentemente.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleDelete(selectedAppointment.id)}>
+                      Elimina
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

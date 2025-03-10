@@ -42,6 +42,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
 import { it } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
 
 const appointmentFormSchema = z.object({
   client: z.string().min(2, { message: "Il nome del cliente è obbligatorio" }),
@@ -86,6 +87,7 @@ type FormData = z.infer<typeof appointmentFormSchema>;
 const NewAppointment = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
+  const [isEmailSending, setIsEmailSending] = useState(false);
   const [localClients, setLocalClients] = useState(() => {
     const storedClients = localStorage.getItem('clients');
     return storedClients ? JSON.parse(storedClients) : clients;
@@ -98,6 +100,41 @@ const NewAppointment = () => {
       date: new Date(),
     },
   });
+
+  const sendEmailNotification = async (
+    email: string,
+    clientName: string,
+    service: string,
+    date: string,
+    time: string
+  ) => {
+    try {
+      setIsEmailSending(true);
+      
+      const { data, error } = await supabase.functions.invoke('send-appointment-email', {
+        body: {
+          to: email,
+          clientName,
+          service,
+          date,
+          time,
+          action: "new"
+        }
+      });
+
+      if (error) {
+        console.error("Errore nell'invio dell'email:", error);
+        toast.error("Errore nell'invio dell'email di notifica");
+      } else {
+        toast.success("Email di conferma inviata con successo");
+      }
+    } catch (error) {
+      console.error("Errore nell'invio dell'email:", error);
+      toast.error("Errore nell'invio dell'email di notifica");
+    } finally {
+      setIsEmailSending(false);
+    }
+  };
 
   const onSubmit = (data: FormData) => {
     console.log("Dati appuntamento:", data);
@@ -130,6 +167,7 @@ const NewAppointment = () => {
       notes: data.notes || '',
     };
     
+    let email = "";
     const isNewClient = !localClients.some(
       (client) => client.name.toLowerCase() === data.client.toLowerCase()
     );
@@ -145,12 +183,30 @@ const NewAppointment = () => {
       const updatedClients = [...localClients, newClient];
       setLocalClients(updatedClients);
       localStorage.setItem('clients', JSON.stringify(updatedClients));
+    } else {
+      const client = localClients.find(
+        (client) => client.name.toLowerCase() === data.client.toLowerCase()
+      );
+      if (client && client.email) {
+        email = client.email;
+      }
     }
 
     const updatedAppointments = [...existingAppointments, newAppointment];
     localStorage.setItem('appointments', JSON.stringify(updatedAppointments));
     
     toast.success("Appuntamento creato con successo!");
+    
+    if (email) {
+      sendEmailNotification(
+        email,
+        data.client,
+        data.service,
+        format(data.date, "d MMMM yyyy", { locale: it }),
+        data.time
+      );
+    }
+    
     navigate("/appointments");
   };
 
