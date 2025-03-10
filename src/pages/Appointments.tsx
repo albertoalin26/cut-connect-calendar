@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -32,7 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, Clock, Pencil, Plus, Scissors, Trash2, Mail, User, Calendar as CalendarIcon, Info } from "lucide-react";
-import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, eachWeekOfInterval, startOfWeek, endOfWeek } from "date-fns";
+import { format, addDays, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,49 +39,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import WeeklyCalendarView from '@/components/calendar/WeeklyCalendarView';
-
-const initialAppointmentsData = [
-  {
-    id: 1,
-    client: "Emma Johnson",
-    service: "Taglio & Piega",
-    duration: "45 min",
-    time: "09:00",
-    status: "confermato",
-    avatar: "EJ",
-    date: new Date(2023, 6, 15),
-  },
-  {
-    id: 2,
-    client: "Michael Smith",
-    service: "Colorazione",
-    duration: "2 ore",
-    time: "11:30",
-    status: "confermato",
-    avatar: "MS",
-    date: new Date(2023, 6, 15),
-  },
-  {
-    id: 3,
-    client: "Sophia Garcia",
-    service: "Piega",
-    duration: "30 min",
-    time: "14:15",
-    status: "in attesa",
-    avatar: "SG",
-    date: new Date(2023, 6, 16),
-  },
-  {
-    id: 4,
-    client: "Daniel Brown",
-    service: "Taglio & Barba",
-    duration: "1 ora",
-    time: "16:45",
-    status: "confermato",
-    avatar: "DB",
-    date: new Date(2023, 6, 17),
-  },
-];
+import { useAuth } from "@/contexts/AuthContext";
 
 const fasce_orarie = [
   "9:00", "9:30", "10:00", "10:30", "11:00", 
@@ -93,75 +50,164 @@ const fasce_orarie = [
 
 const Appointments = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [date, setDate] = useState<Date>(new Date());
   const [view, setView] = useState("day");
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [appointments, setAppointments] = useState(initialAppointmentsData);
+  const [appointments, setAppointments] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [isEmailSending, setIsEmailSending] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Fetch appointments from Supabase
   useEffect(() => {
-    const storedAppointments = localStorage.getItem('appointments');
-    if (storedAppointments) {
+    const fetchAppointments = async () => {
+      setIsLoading(true);
       try {
-        const parsedAppointments = JSON.parse(storedAppointments, (key, value) => {
-          if (key === 'date' && value) {
-            return new Date(value);
-          }
-          return value;
-        });
-        setAppointments(parsedAppointments);
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('*');
+        
+        if (error) {
+          console.error("Error fetching appointments:", error);
+          toast.error("Errore nel caricamento degli appuntamenti");
+          return;
+        }
+        
+        // Transform appointments to match the expected format
+        const formattedAppointments = data.map(appointment => ({
+          id: appointment.id,
+          client: appointment.client_id, // Will be replaced with profile info
+          service: appointment.service,
+          duration: appointment.duration,
+          time: appointment.time,
+          status: appointment.status,
+          avatar: "CL",
+          date: new Date(appointment.date),
+          notes: appointment.notes || ''
+        }));
+        
+        // Fetch client profiles for each appointment
+        const clientProfiles = await Promise.all(
+          formattedAppointments.map(async (appointment) => {
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', appointment.client)
+              .single();
+            
+            if (profileError) {
+              console.error("Error fetching client profile:", profileError);
+              return appointment;
+            }
+            
+            // Create initials for avatar
+            const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
+            const initials = fullName
+              .split(' ')
+              .map(n => n[0])
+              .join('')
+              .toUpperCase()
+              .substring(0, 2) || 'CL';
+            
+            return {
+              ...appointment,
+              client: fullName || 'Cliente Sconosciuto',
+              clientEmail: profileData.email,
+              avatar: initials
+            };
+          })
+        );
+        
+        setAppointments(clientProfiles);
       } catch (error) {
-        console.error("Errore nel parsing degli appuntamenti:", error);
+        console.error("Unexpected error fetching appointments:", error);
+        toast.error("Errore nel caricamento degli appuntamenti");
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
 
-    // Load clients
-    const storedClients = localStorage.getItem('clients');
-    if (storedClients) {
+    // Load clients from profiles table
+    const fetchClients = async () => {
       try {
-        const parsedClients = JSON.parse(storedClients);
-        setClients(parsedClients);
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*');
+        
+        if (error) {
+          console.error("Error fetching clients:", error);
+          toast.error("Errore nel caricamento dei clienti");
+          return;
+        }
+        
+        const formattedClients = data.map(profile => ({
+          id: profile.id,
+          name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Cliente Sconosciuto',
+          phone: profile.phone || '',
+          email: profile.email || ''
+        }));
+        
+        setClients(formattedClients);
       } catch (error) {
-        console.error("Errore nel parsing dei clienti:", error);
+        console.error("Unexpected error fetching clients:", error);
       }
-    }
-  }, []);
+    };
 
-  useEffect(() => {
-    localStorage.setItem('appointments', JSON.stringify(appointments));
-  }, [appointments]);
+    if (user) {
+      fetchAppointments();
+      fetchClients();
+    }
+  }, [user]);
 
   const handleViewAppointment = (appointment: any) => {
     setSelectedAppointment(appointment);
     setIsViewDialogOpen(true);
   };
 
-  const handleDelete = (appointmentId: number) => {
+  const handleDelete = async (appointmentId: string) => {
     const appointmentToDelete = appointments.find(app => app.id === appointmentId);
     
     if (appointmentToDelete) {
-      // Send email notification for cancellation
-      const client = clients.find(c => c.name === appointmentToDelete.client);
-      
-      if (client && client.email) {
-        sendEmailNotification(
-          client.email,
-          appointmentToDelete.client,
-          appointmentToDelete.service,
-          format(new Date(appointmentToDelete.date), "d MMMM yyyy", { locale: it }),
-          appointmentToDelete.time,
-          "cancelled"
-        );
+      try {
+        // First delete from Supabase
+        const { error } = await supabase
+          .from('appointments')
+          .delete()
+          .eq('id', appointmentId);
+        
+        if (error) {
+          console.error("Error deleting appointment:", error);
+          toast.error("Errore nella cancellazione dell'appuntamento");
+          return;
+        }
+        
+        // Update local state
+        const updatedAppointments = appointments.filter(app => app.id !== appointmentId);
+        setAppointments(updatedAppointments);
+        
+        // Send email notification for cancellation
+        if (appointmentToDelete.clientEmail) {
+          sendEmailNotification(
+            appointmentToDelete.clientEmail,
+            appointmentToDelete.client,
+            appointmentToDelete.service,
+            format(new Date(appointmentToDelete.date), "d MMMM yyyy", { locale: it }),
+            appointmentToDelete.time,
+            "cancelled"
+          );
+        }
+        
+        toast.success("Appuntamento cancellato con successo");
+      } catch (error) {
+        console.error("Unexpected error deleting appointment:", error);
+        toast.error("Errore nella cancellazione dell'appuntamento");
       }
     }
     
-    const updatedAppointments = appointments.filter(app => app.id !== appointmentId);
-    setAppointments(updatedAppointments);
     setIsViewDialogOpen(false);
-    toast.success("Appuntamento cancellato con successo");
   };
 
   const handleEdit = (appointment: any) => {
@@ -169,32 +215,46 @@ const Appointments = () => {
     setIsEditDialogOpen(true);
   };
 
-  const handleUpdate = (appointmentId: number, updatedData: any) => {
-    const updatedAppointments = appointments.map(appointment => 
-      appointment.id === appointmentId 
-        ? { 
-            ...appointment, 
-            client: updatedData.client || appointment.client,
-            time: updatedData.time || appointment.time,
-            service: updatedData.service || appointment.service
-          } 
-        : appointment
-    );
-    
-    setAppointments(updatedAppointments);
-    setIsEditDialogOpen(false);
-    setIsViewDialogOpen(false);
-    
-    // Get the updated appointment
-    const updatedAppointment = updatedAppointments.find(app => app.id === appointmentId);
-    
-    if (updatedAppointment) {
-      // Send email notification
-      const client = clients.find(c => c.name === updatedAppointment.client);
+  const handleUpdate = async (appointmentId: string, updatedData: any) => {
+    try {
+      // First update in Supabase
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          service: updatedData.service || selectedAppointment.service,
+          time: updatedData.time || selectedAppointment.time,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appointmentId);
       
-      if (client && client.email) {
+      if (error) {
+        console.error("Error updating appointment:", error);
+        toast.error("Errore nell'aggiornamento dell'appuntamento");
+        return;
+      }
+      
+      // Update local state
+      const updatedAppointments = appointments.map(appointment => 
+        appointment.id === appointmentId 
+          ? { 
+              ...appointment, 
+              service: updatedData.service || appointment.service,
+              time: updatedData.time || appointment.time
+            } 
+          : appointment
+      );
+      
+      setAppointments(updatedAppointments);
+      setIsEditDialogOpen(false);
+      setIsViewDialogOpen(false);
+      
+      // Get the updated appointment
+      const updatedAppointment = updatedAppointments.find(app => app.id === appointmentId);
+      
+      if (updatedAppointment && updatedAppointment.clientEmail) {
+        // Send email notification
         sendEmailNotification(
-          client.email,
+          updatedAppointment.clientEmail,
           updatedAppointment.client,
           updatedAppointment.service,
           format(new Date(updatedAppointment.date), "d MMMM yyyy", { locale: it }),
@@ -202,9 +262,12 @@ const Appointments = () => {
           "updated"
         );
       }
+      
+      toast.success("Appuntamento aggiornato con successo");
+    } catch (error) {
+      console.error("Unexpected error updating appointment:", error);
+      toast.error("Errore nell'aggiornamento dell'appuntamento");
     }
-    
-    toast.success("Appuntamento aggiornato con successo");
   };
 
   const sendEmailNotification = async (
@@ -286,9 +349,9 @@ const Appointments = () => {
   const renderTimeSlot = (time: string) => {
     const timeAppointments = appointments.filter(app => 
       app.time === time && 
-      app.date.getDate() === date.getDate() &&
-      app.date.getMonth() === date.getMonth() &&
-      app.date.getFullYear() === date.getFullYear()
+      new Date(app.date).getDate() === date.getDate() &&
+      new Date(app.date).getMonth() === date.getMonth() &&
+      new Date(app.date).getFullYear() === date.getFullYear()
     );
     
     return (
@@ -354,10 +417,10 @@ const Appointments = () => {
   };
 
   const renderMonthlyView = () => {
-    const start = startOfMonth(date);
-    const end = endOfMonth(date);
+    const start = parseISO(format(date, 'yyyy-MM-01'));
+    const end = parseISO(format(addDays(date, 31), 'yyyy-MM-dd'));
     const days = eachDayOfInterval({ start, end });
-    const firstDayOfMonth = start.getDay();
+    const firstDayOfMonth = new Date(format(date, 'yyyy-MM-01')).getDay();
     
     const emptyDays = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
 
@@ -374,9 +437,9 @@ const Appointments = () => {
         {days.map((day) => {
           const dayAppointments = appointments.filter(
             (appointment) => 
-              appointment.date.getDate() === day.getDate() &&
-              appointment.date.getMonth() === day.getMonth() &&
-              appointment.date.getFullYear() === day.getFullYear()
+              new Date(appointment.date).getDate() === day.getDate() &&
+              new Date(appointment.date).getMonth() === day.getMonth() &&
+              new Date(appointment.date).getFullYear() === day.getFullYear()
           );
           
           return (
@@ -421,92 +484,111 @@ const Appointments = () => {
         </Button>
       </div>
 
-      <Tabs defaultValue="day" value={view} onValueChange={setView} className="space-y-4">
-        <div className="flex justify-between items-center">
-          <TabsList>
-            <TabsTrigger value="day">Giorno</TabsTrigger>
-            <TabsTrigger value="week">Settimana</TabsTrigger>
-            <TabsTrigger value="month">Mese</TabsTrigger>
-          </TabsList>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center">
-              <Button
-                variant="outline"
-                size="icon"
-                className="rounded-r-none"
-                onClick={() => setDate(prev => addDays(prev, -1))}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="rounded-l-none"
-                onClick={() => setDate(prev => addDays(prev, 1))}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+      {isLoading ? (
+        <Card>
+          <CardContent className="p-10 flex justify-center">
+            <div className="text-center">
+              <p className="text-muted-foreground">Caricamento degli appuntamenti in corso...</p>
             </div>
-            <div className="text-sm font-medium">
-              {format(date, "d MMMM yyyy", { locale: it })}
+          </CardContent>
+        </Card>
+      ) : appointments.length === 0 ? (
+        <Card>
+          <CardContent className="p-10">
+            <div className="text-center">
+              <p className="text-muted-foreground mb-4">Nessun appuntamento trovato</p>
+              <Button onClick={() => navigate("/appointments/new")}>Crea il primo appuntamento</Button>
             </div>
-          </div>
-        </div>
-
-        <TabsContent value="day" className="space-y-4">
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="md:col-span-2 space-y-6">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle>Programma Giornaliero</CardTitle>
-                  <CardDescription>
-                    Appuntamenti per il {format(date, "d MMMM yyyy", { locale: it })}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="max-h-[600px] overflow-y-auto">
-                  <div className="space-y-1">
-                    {fasce_orarie.map(renderTimeSlot)}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            <div>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Calendario</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Calendar
-                    mode="single"
-                    selected={date}
-                    onSelect={(newDate) => newDate && setDate(newDate)}
-                    className="pointer-events-auto"
-                    locale={it}
-                  />
-                </CardContent>
-              </Card>
+          </CardContent>
+        </Card>
+      ) : (
+        <Tabs defaultValue="day" value={view} onValueChange={setView} className="space-y-4">
+          <div className="flex justify-between items-center">
+            <TabsList>
+              <TabsTrigger value="day">Giorno</TabsTrigger>
+              <TabsTrigger value="week">Settimana</TabsTrigger>
+              <TabsTrigger value="month">Mese</TabsTrigger>
+            </TabsList>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-r-none"
+                  onClick={() => setDate(prev => addDays(prev, -1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="rounded-l-none"
+                  onClick={() => setDate(prev => addDays(prev, 1))}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="text-sm font-medium">
+                {format(date, "d MMMM yyyy", { locale: it })}
+              </div>
             </div>
           </div>
-        </TabsContent>
 
-        <TabsContent value="week">
-          {renderWeeklyView()}
-        </TabsContent>
+          <TabsContent value="day" className="space-y-4">
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="md:col-span-2 space-y-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle>Programma Giornaliero</CardTitle>
+                    <CardDescription>
+                      Appuntamenti per il {format(date, "d MMMM yyyy", { locale: it })}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="max-h-[600px] overflow-y-auto">
+                    <div className="space-y-1">
+                      {fasce_orarie.map(renderTimeSlot)}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              <div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Calendario</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={(newDate) => newDate && setDate(newDate)}
+                      className="pointer-events-auto"
+                      locale={it}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
 
-        <TabsContent value="month">
-          <Card>
-            <CardHeader>
-              <CardTitle>Vista Mensile</CardTitle>
-              <CardDescription>
-                Visualizza gli appuntamenti per {format(date, "MMMM yyyy", { locale: it })}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {renderMonthlyView()}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="week">
+            {renderWeeklyView()}
+          </TabsContent>
+
+          <TabsContent value="month">
+            <Card>
+              <CardHeader>
+                <CardTitle>Vista Mensile</CardTitle>
+                <CardDescription>
+                  Visualizza gli appuntamenti per {format(date, "MMMM yyyy", { locale: it })}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {renderMonthlyView()}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      )}
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -520,13 +602,13 @@ const Appointments = () => {
           {selectedAppointment && (
             <div className="space-y-4">
               <div>
-                <Label>Cliente</Label>
+                <Label>Servizio</Label>
                 <Input 
-                  defaultValue={selectedAppointment.client}
+                  defaultValue={selectedAppointment.service}
                   className="mt-1.5"
                   onChange={(e) => setSelectedAppointment({
                     ...selectedAppointment,
-                    client: e.target.value
+                    service: e.target.value
                   })}
                 />
               </div>
@@ -538,17 +620,6 @@ const Appointments = () => {
                   onChange={(e) => setSelectedAppointment({
                     ...selectedAppointment,
                     time: e.target.value
-                  })}
-                />
-              </div>
-              <div>
-                <Label>Servizio</Label>
-                <Input 
-                  defaultValue={selectedAppointment.service}
-                  className="mt-1.5"
-                  onChange={(e) => setSelectedAppointment({
-                    ...selectedAppointment,
-                    service: e.target.value
                   })}
                 />
               </div>
@@ -634,10 +705,9 @@ const Appointments = () => {
                 size="sm" 
                 className="gap-1" 
                 onClick={() => {
-                  const client = clients.find(c => c.name === selectedAppointment?.client);
-                  if (client && client.email) {
+                  if (selectedAppointment?.clientEmail) {
                     sendEmailNotification(
-                      client.email, 
+                      selectedAppointment.clientEmail, 
                       selectedAppointment.client,
                       selectedAppointment.service,
                       format(new Date(selectedAppointment.date), "d MMMM yyyy", { locale: it }),
