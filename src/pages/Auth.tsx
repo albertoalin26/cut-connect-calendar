@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -53,6 +52,7 @@ const Auth = () => {
     const checkSession = async () => {
       try {
         const { data } = await supabase.auth.getSession();
+        
         if (data.session) {
           navigate("/dashboard");
         }
@@ -94,7 +94,7 @@ const Auth = () => {
 
       if (error) {
         console.error("Login error:", error);
-        toast.error(error.message);
+        toast.error(error.message || "Credenziali non valide");
         return;
       }
 
@@ -111,10 +111,18 @@ const Auth = () => {
   const onRegisterSubmit = async (data: RegisterFormValues) => {
     try {
       setIsLoading(true);
-      console.log("Attempting registration with:", data.email);
+      
+      const cleanEmail = data.email.trim().toLowerCase();
+      console.log("Attempting registration with:", cleanEmail);
+      
+      if (!cleanEmail || !data.password || !data.firstName || !data.lastName) {
+        toast.error("Tutti i campi sono obbligatori");
+        setIsLoading(false);
+        return;
+      }
       
       const { error } = await supabase.auth.signUp({
-        email: data.email,
+        email: cleanEmail,
         password: data.password,
         options: {
           data: {
@@ -126,7 +134,14 @@ const Auth = () => {
 
       if (error) {
         console.error("Registration error:", error);
-        toast.error(error.message);
+        
+        if (error.message.includes("email")) {
+          toast.error("Email non valida o già registrata");
+        } else if (error.message.includes("password")) {
+          toast.error("La password non è abbastanza sicura");
+        } else {
+          toast.error(error.message);
+        }
         return;
       }
 
@@ -275,7 +290,15 @@ const Auth = () => {
                         <FormControl>
                           <div className="relative">
                             <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input placeholder="La tua email" className="pl-10" {...field} />
+                            <Input 
+                              placeholder="La tua email" 
+                              className="pl-10" 
+                              {...field} 
+                              onChange={(e) => {
+                                const normalizedEmail = e.target.value.trim().toLowerCase();
+                                field.onChange(normalizedEmail);
+                              }}
+                            />
                           </div>
                         </FormControl>
                         <FormMessage />

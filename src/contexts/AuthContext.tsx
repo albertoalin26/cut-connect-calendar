@@ -47,13 +47,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fetchInitialSession = async () => {
       try {
         setIsLoading(true);
-        const { data } = await supabase.auth.getSession();
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("Error getting session:", error);
+          return;
+        }
+        
+        console.log("Initial session check:", data.session ? "Session exists" : "No session");
         
         setSession(data.session);
         setUser(data.session?.user || null);
         
         if (data.session?.user) {
           const role = await fetchUserRole(data.session.user.id);
+          console.log("User role:", role);
           setUserRole(role);
         }
       } catch (error) {
@@ -89,9 +97,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error("Error signing out:", error);
+        toast.error(error.message || "Si è verificato un errore durante il logout");
+        return;
+      }
+      
       toast.success("Logout effettuato con successo");
     } catch (error: any) {
+      console.error("Exception during signOut:", error);
       toast.error(error.message || "Si è verificato un errore durante il logout");
     }
   };
