@@ -15,6 +15,7 @@ const AppLayout = () => {
 
   useEffect(() => {
     if (!isLoading && !user) {
+      console.log("User not authenticated, redirecting to auth page");
       navigate("/auth");
     }
   }, [user, isLoading, navigate]);

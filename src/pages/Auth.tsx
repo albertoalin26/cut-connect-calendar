@@ -51,9 +51,13 @@ const Auth = () => {
 
   useEffect(() => {
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        navigate("/dashboard");
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          navigate("/dashboard");
+        }
+      } catch (error) {
+        console.error("Error checking session:", error);
       }
     };
     
@@ -81,12 +85,15 @@ const Auth = () => {
   const onLoginSubmit = async (data: LoginFormValues) => {
     try {
       setIsLoading(true);
+      console.log("Attempting login with:", data.email);
+      
       const { error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       });
 
       if (error) {
+        console.error("Login error:", error);
         toast.error(error.message);
         return;
       }
@@ -94,6 +101,7 @@ const Auth = () => {
       toast.success("Login effettuato con successo!");
       navigate("/dashboard");
     } catch (error: any) {
+      console.error("Login exception:", error);
       toast.error(error.message || "Si è verificato un errore durante il login");
     } finally {
       setIsLoading(false);
@@ -103,6 +111,7 @@ const Auth = () => {
   const onRegisterSubmit = async (data: RegisterFormValues) => {
     try {
       setIsLoading(true);
+      console.log("Attempting registration with:", data.email);
       
       const { error } = await supabase.auth.signUp({
         email: data.email,
@@ -116,6 +125,7 @@ const Auth = () => {
       });
 
       if (error) {
+        console.error("Registration error:", error);
         toast.error(error.message);
         return;
       }
@@ -123,6 +133,7 @@ const Auth = () => {
       toast.success("Registrazione completata! Verifica la tua email per confermare l'account.");
       setActiveTab("login");
     } catch (error: any) {
+      console.error("Registration exception:", error);
       toast.error(error.message || "Si è verificato un errore durante la registrazione");
     } finally {
       setIsLoading(false);
@@ -137,6 +148,7 @@ const Auth = () => {
       const { data, error } = await supabase.functions.invoke('setup-initial-users');
       
       if (error) {
+        console.error("Demo users error:", error);
         toast.error(`Errore: ${error.message}`);
         return;
       }
@@ -150,6 +162,7 @@ const Auth = () => {
         toast.info(`Admin: ${data.admin.email} / ${data.admin.password}`);
       }
     } catch (error: any) {
+      console.error("Demo users exception:", error);
       toast.error(error.message || "Si è verificato un errore durante la creazione degli utenti demo");
     } finally {
       setIsCreatingDemoUsers(false);
