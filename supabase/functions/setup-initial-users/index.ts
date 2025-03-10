@@ -15,6 +15,8 @@ serve(async (req) => {
   }
 
   try {
+    console.log("Starting setup-initial-users function");
+    
     // Create a Supabase client with the Admin key
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -31,14 +33,19 @@ serve(async (req) => {
     const clientEmail = "alberto@cliente.it";
     const genericPassword = "Password123!";
 
+    console.log("Deleting existing users if they exist");
+    
     // Delete existing users if they exist (to avoid conflicts)
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     
     for (const user of existingUsers?.users || []) {
       if (user.email === adminEmail || user.email === clientEmail) {
+        console.log(`Deleting existing user: ${user.email}`);
         await supabaseAdmin.auth.admin.deleteUser(user.id);
       }
     }
+    
+    console.log("Creating admin user");
     
     // Create admin user with auto-confirmation
     const { data: adminData, error: adminError } = await supabaseAdmin.auth.admin.createUser({
@@ -51,6 +58,8 @@ serve(async (req) => {
       }
     });
 
+    console.log("Creating client user");
+    
     // Create client user with auto-confirmation
     const { data: clientData, error: clientError } = await supabaseAdmin.auth.admin.createUser({
       email: clientEmail,
@@ -62,6 +71,8 @@ serve(async (req) => {
       }
     });
 
+    console.log("Setting admin role");
+    
     // Set Achi as admin
     if (adminData?.user) {
       const { error: roleError } = await supabaseAdmin
@@ -73,26 +84,37 @@ serve(async (req) => {
       
       if (roleError) {
         console.error("Error setting admin role:", roleError);
+      } else {
+        console.log("Admin role set successfully");
       }
     }
 
     // Check for errors
     if (adminError) {
       console.error("Error creating admin:", adminError);
+    } else {
+      console.log("Admin created successfully");
     }
     
     if (clientError) {
       console.error("Error creating client:", clientError);
+    } else {
+      console.log("Client created successfully");
     }
 
+    const responseData = {
+      message: "Initial users setup complete", 
+      admin: adminError ? { error: adminError.message } : { email: adminEmail, password: genericPassword },
+      client: clientError ? { error: clientError.message } : { email: clientEmail, password: genericPassword }
+    };
+    
+    console.log("Returning response data", JSON.stringify(responseData));
+
     return new Response(
-      JSON.stringify({ 
-        message: "Initial users setup complete", 
-        admin: adminError ? { error: adminError.message } : { email: adminEmail, password: genericPassword },
-        client: clientError ? { error: clientError.message } : { email: clientEmail, password: genericPassword }
-      }),
+      JSON.stringify(responseData),
       { 
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200
       }
     )
   } catch (error) {

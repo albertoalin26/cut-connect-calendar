@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -87,8 +88,11 @@ const Auth = () => {
       setIsLoading(true);
       console.log("Attempting login with:", data.email);
       
+      // Trim and lowercase email to match how we store it
+      const cleanEmail = data.email.trim().toLowerCase();
+      
       const { error } = await supabase.auth.signInWithPassword({
-        email: data.email,
+        email: cleanEmail,
         password: data.password,
       });
 
@@ -160,6 +164,9 @@ const Auth = () => {
       setIsCreatingDemoUsers(true);
       toast.info("Creando utenti demo...");
       
+      // Display more detailed logs
+      console.log("Invocando la funzione setup-initial-users...");
+      
       const { data, error } = await supabase.functions.invoke('setup-initial-users');
       
       if (error) {
@@ -168,13 +175,27 @@ const Auth = () => {
         return;
       }
 
+      console.log("Risposta dalla funzione setup-initial-users:", data);
+      
+      if (!data || !data.admin) {
+        console.error("Dati mancanti nella risposta", data);
+        toast.error("Dati mancanti nella risposta dal server");
+        return;
+      }
+      
       toast.success("Utenti demo creati con successo!");
-      console.log("Demo users created:", data);
       
       if (data.admin) {
+        // Auto-fill login form with admin credentials
         loginForm.setValue('email', data.admin.email);
         loginForm.setValue('password', data.admin.password);
+        
+        // Display credentials in toast
         toast.info(`Admin: ${data.admin.email} / ${data.admin.password}`);
+        toast.info(`Client: ${data.client.email} / ${data.client.password}`);
+        
+        // Switch to login tab
+        setActiveTab("login");
       }
     } catch (error: any) {
       console.error("Demo users exception:", error);
@@ -219,7 +240,14 @@ const Auth = () => {
                         <FormControl>
                           <div className="relative">
                             <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                            <Input placeholder="La tua email" className="pl-10" {...field} />
+                            <Input 
+                              placeholder="La tua email" 
+                              className="pl-10" 
+                              {...field} 
+                              onChange={(e) => {
+                                field.onChange(e.target.value.trim().toLowerCase());
+                              }}
+                            />
                           </div>
                         </FormControl>
                         <FormMessage />

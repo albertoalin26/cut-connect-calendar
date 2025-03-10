@@ -47,6 +47,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fetchInitialSession = async () => {
       try {
         setIsLoading(true);
+        console.log("Fetching initial session...");
+        
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -55,6 +57,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         console.log("Initial session check:", data.session ? "Session exists" : "No session");
+        
+        if (data.session) {
+          console.log("User authenticated:", data.session.user.email);
+        }
         
         setSession(data.session);
         setUser(data.session?.user || null);
@@ -82,6 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (newSession?.user) {
           const role = await fetchUserRole(newSession.user.id);
           setUserRole(role);
+          console.log("Updated user role:", role);
         } else {
           setUserRole(null);
         }
@@ -97,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
+      console.log("Attempting to sign out...");
       const { error } = await supabase.auth.signOut();
       
       if (error) {
@@ -105,6 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
+      console.log("Sign out successful");
       toast.success("Logout effettuato con successo");
     } catch (error: any) {
       console.error("Exception during signOut:", error);
