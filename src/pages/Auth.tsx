@@ -28,11 +28,13 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Scissors, Mail, Lock, User, UserPlus } from "lucide-react";
 
+// Modificato lo schema per una validazione più flessibile delle email
 const loginSchema = z.object({
   email: z.string().email({ message: "Inserisci un'email valida" }),
   password: z.string().min(6, { message: "La password deve contenere almeno 6 caratteri" }),
 });
 
+// Modificato lo schema per una validazione più flessibile delle email
 const registerSchema = z.object({
   email: z.string().email({ message: "Inserisci un'email valida" }),
   password: z.string().min(6, { message: "La password deve contenere almeno 6 caratteri" }),
@@ -88,8 +90,8 @@ const Auth = () => {
       setIsLoading(true);
       console.log("Attempting login with:", data.email);
       
-      // Trim and lowercase email to match how we store it
       const cleanEmail = data.email.trim().toLowerCase();
+      console.log("Normalized email for login:", cleanEmail);
       
       const { error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
@@ -117,15 +119,30 @@ const Auth = () => {
       setIsLoading(true);
       
       const cleanEmail = data.email.trim().toLowerCase();
-      console.log("Attempting registration with:", cleanEmail);
+      console.log("Attempting registration with email:", cleanEmail);
+      console.log("Form data:", JSON.stringify(data));
+      
+      // Validazione manuale aggiuntiva
+      if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+        console.error("Email validation failed:", cleanEmail);
+        toast.error("Email non valida. Assicurati che contenga @ e un dominio valido.");
+        setIsLoading(false);
+        return;
+      }
       
       if (!cleanEmail || !data.password || !data.firstName || !data.lastName) {
+        console.error("Missing required fields:", { 
+          hasEmail: !!cleanEmail, 
+          hasPassword: !!data.password, 
+          hasFirstName: !!data.firstName, 
+          hasLastName: !!data.lastName 
+        });
         toast.error("Tutti i campi sono obbligatori");
         setIsLoading(false);
         return;
       }
       
-      const { error } = await supabase.auth.signUp({
+      const { data: signUpData, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password: data.password,
         options: {
@@ -136,8 +153,11 @@ const Auth = () => {
         },
       });
 
+      console.log("SignUp response:", error ? "Error occurred" : "Success", 
+                  "User data:", signUpData?.user ? "User created" : "No user data");
+      
       if (error) {
-        console.error("Registration error:", error);
+        console.error("Registration error details:", error);
         
         if (error.message.includes("email")) {
           toast.error("Email non valida o già registrata");
@@ -244,9 +264,6 @@ const Auth = () => {
                               placeholder="La tua email" 
                               className="pl-10" 
                               {...field} 
-                              onChange={(e) => {
-                                field.onChange(e.target.value.trim().toLowerCase());
-                              }}
                             />
                           </div>
                         </FormControl>
@@ -321,11 +338,8 @@ const Auth = () => {
                             <Input 
                               placeholder="La tua email" 
                               className="pl-10" 
+                              type="email"
                               {...field} 
-                              onChange={(e) => {
-                                const normalizedEmail = e.target.value.trim().toLowerCase();
-                                field.onChange(normalizedEmail);
-                              }}
                             />
                           </div>
                         </FormControl>

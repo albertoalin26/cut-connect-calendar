@@ -26,6 +26,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const fetchUserRole = async (userId: string) => {
       try {
+        console.log("Fetching user role for userId:", userId);
+        
         const { data, error } = await supabase
           .from("user_roles")
           .select("role")
@@ -37,9 +39,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return null;
         }
 
+        console.log("User role fetched:", data?.role);
         return data?.role as UserRole;
       } catch (error) {
-        console.error("Error in fetchUserRole:", error);
+        console.error("Exception in fetchUserRole:", error);
         return null;
       }
     };
@@ -60,6 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (data.session) {
           console.log("User authenticated:", data.session.user.email);
+          console.log("User metadata:", data.session.user.user_metadata);
         }
         
         setSession(data.session);
@@ -71,7 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserRole(role);
         }
       } catch (error) {
-        console.error("Error fetching session:", error);
+        console.error("Exception fetching session:", error);
       } finally {
         setIsLoading(false);
       }
@@ -82,6 +86,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         console.log("Auth state changed:", event, newSession?.user?.email);
+        console.log("Auth event details:", { event, userId: newSession?.user?.id, email: newSession?.user?.email });
+        
         setSession(newSession);
         setUser(newSession?.user || null);
         
