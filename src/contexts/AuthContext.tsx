@@ -33,7 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .from("user_roles")
           .select("role")
           .eq("user_id", userId)
-          .single();
+          .maybeSingle(); // Using maybeSingle instead of single to avoid errors if no role exists
 
         if (error) {
           console.error("Error fetching user role:", error);
@@ -66,20 +66,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data.session) {
           console.log("User authenticated:", data.session.user.email);
           console.log("User metadata:", data.session.user.user_metadata);
-        }
-        
-        setSession(data.session);
-        setUser(data.session?.user || null);
-        
-        if (data.session?.user) {
+          
+          setSession(data.session);
+          setUser(data.session.user);
+          
           const role = await fetchUserRole(data.session.user.id);
           console.log("User role:", role);
           setUserRole(role);
+        } else {
+          // Clear state when no session is found
+          setSession(null);
+          setUser(null);
+          setUserRole(null);
         }
-        
-        setIsLoading(false);
       } catch (error) {
         console.error("Exception fetching session:", error);
+      } finally {
         setIsLoading(false);
       }
     };
@@ -90,15 +92,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (event, newSession) => {
         console.log("Auth state changed:", event, newSession?.user?.email);
         
-        setSession(newSession);
-        setUser(newSession?.user || null);
-        
-        if (newSession?.user) {
+        if (event === 'SIGNED_OUT') {
+          // Clear state on sign out
+          setSession(null);
+          setUser(null);
+          setUserRole(null);
+          console.log("User signed out, state cleared");
+        } else if (newSession) {
+          setSession(newSession);
+          setUser(newSession.user);
+          
           const role = await fetchUserRole(newSession.user.id);
           setUserRole(role);
           console.log("Updated user role:", role);
-        } else {
-          setUserRole(null);
         }
         
         setIsLoading(false);

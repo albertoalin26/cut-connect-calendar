@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -51,11 +50,13 @@ const Auth = () => {
   const [activeTab, setActiveTab] = useState("login");
   const [isCreatingDemoUsers, setIsCreatingDemoUsers] = useState(false);
   const { user, signInWithGoogle } = useAuth();
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
     const checkSession = async () => {
       try {
-        console.log("Checking session in Auth page");
+        console.log("Checking session in Auth page (once)");
+        setCheckingAuth(true);
         const { data } = await supabase.auth.getSession();
         
         if (data.session) {
@@ -66,11 +67,22 @@ const Auth = () => {
         }
       } catch (error) {
         console.error("Error checking session:", error);
+      } finally {
+        setCheckingAuth(false);
       }
     };
     
+    // Only check once on mount
     checkSession();
-  }, [navigate, user]);
+  }, [navigate]);
+
+  // Separate effect to watch for user changes
+  useEffect(() => {
+    if (user && !checkingAuth) {
+      console.log("User detected, redirecting to dashboard");
+      navigate("/dashboard");
+    }
+  }, [user, navigate, checkingAuth]);
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -203,7 +215,6 @@ const Auth = () => {
     }
   };
 
-  // Aggiungiamo una funzione di debug per mostrare informazioni utili
   const debugLogin = async () => {
     try {
       console.log("Debug: Verificando l'autenticazione...");
@@ -232,6 +243,14 @@ const Auth = () => {
       toast.error("Errore durante il debug");
     }
   };
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
