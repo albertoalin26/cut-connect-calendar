@@ -128,7 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      // Clear state dopo il logout
+      // Explicitly clear state after logout
       setUser(null);
       setSession(null);
       setUserRole(null);
