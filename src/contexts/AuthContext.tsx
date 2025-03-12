@@ -122,6 +122,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
+      // Clear state dopo il logout
+      setUser(null);
+      setSession(null);
+      setUserRole(null);
+      
       console.log("Sign out successful");
       toast.success("Logout effettuato con successo");
     } catch (error: any) {

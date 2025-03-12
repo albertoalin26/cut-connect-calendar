@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -199,6 +200,36 @@ const Auth = () => {
     } catch (error) {
       console.error("Error in handleGoogleSignIn:", error);
       toast.error("Errore durante l'accesso con Google");
+    }
+  };
+
+  // Aggiungiamo una funzione di debug per mostrare informazioni utili
+  const debugLogin = async () => {
+    try {
+      console.log("Debug: Verificando l'autenticazione...");
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error("Debug - Errore sessione:", error);
+        toast.error("Errore nel recupero della sessione");
+        return;
+      }
+      
+      if (data.session) {
+        console.log("Debug - Utente già autenticato:", data.session.user.email);
+        toast.info(`Già autenticato come: ${data.session.user.email}`);
+      } else {
+        console.log("Debug - Nessuna sessione attiva");
+        toast.info("Nessuna sessione attiva. Prova ad accedere");
+        
+        // Tentiamo un login con le credenziali demo
+        loginForm.setValue('email', 'achi@salone.it');
+        loginForm.setValue('password', 'Password123!');
+        toast.info("Credenziali demo inserite. Premi Accedi");
+      }
+    } catch (error) {
+      console.error("Debug exception:", error);
+      toast.error("Errore durante il debug");
     }
   };
 
@@ -415,7 +446,7 @@ const Auth = () => {
               </Button>
             </p>
             
-            <div className="w-full">
+            <div className="w-full space-y-2">
               <Button 
                 variant="outline" 
                 className="w-full flex items-center gap-2" 
@@ -425,6 +456,15 @@ const Auth = () => {
                 <UserPlus className="h-4 w-4" />
                 {isCreatingDemoUsers ? "Creazione utenti in corso..." : "Crea utenti demo"}
               </Button>
+
+              <Button
+                variant="ghost"
+                className="w-full text-xs text-muted-foreground"
+                onClick={debugLogin}
+              >
+                Debug Login
+              </Button>
+              
               <p className="text-xs text-muted-foreground mt-1 text-center">
                 Crea un admin (achi@salone.it) e un cliente (alberto@cliente.it)
               </p>
