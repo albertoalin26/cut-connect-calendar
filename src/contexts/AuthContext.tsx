@@ -57,6 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (error) {
           console.error("Error getting session:", error);
+          setIsLoading(false);
           return;
         }
         
@@ -75,9 +76,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log("User role:", role);
           setUserRole(role);
         }
+        
+        setIsLoading(false);
       } catch (error) {
         console.error("Exception fetching session:", error);
-      } finally {
         setIsLoading(false);
       }
     };
@@ -87,7 +89,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         console.log("Auth state changed:", event, newSession?.user?.email);
-        console.log("Auth event details:", { event, userId: newSession?.user?.id, email: newSession?.user?.email });
         
         setSession(newSession);
         setUser(newSession?.user || null);
@@ -112,6 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       console.log("Attempting to sign out...");
+      setIsLoading(true);
       const { error } = await supabase.auth.signOut();
       
       if (error) {
@@ -125,12 +127,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error("Exception during signOut:", error);
       toast.error(error.message || "Si è verificato un errore durante il logout");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const signInWithGoogle = async () => {
     try {
       console.log("Attempting to sign in with Google...");
+      setIsLoading(true);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -148,6 +153,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error("Exception during Google sign in:", error);
       toast.error(error.message || "Si è verificato un errore durante l'accesso con Google");
+    } finally {
+      setIsLoading(false);
     }
   };
 

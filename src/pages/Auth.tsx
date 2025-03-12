@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -26,17 +25,15 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Scissors, Mail, Lock, User, UserPlus, Github } from "lucide-react";
+import { Scissors, Mail, Lock, User, UserPlus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Separator } from "@/components/ui/separator";
 
-// Modificato lo schema per una validazione più flessibile delle email
 const loginSchema = z.object({
   email: z.string().email({ message: "Inserisci un'email valida" }),
   password: z.string().min(6, { message: "La password deve contenere almeno 6 caratteri" }),
 });
 
-// Modificato lo schema per una validazione più flessibile delle email
 const registerSchema = z.object({
   email: z.string().email({ message: "Inserisci un'email valida" }),
   password: z.string().min(6, { message: "La password deve contenere almeno 6 caratteri" }),
@@ -57,10 +54,14 @@ const Auth = () => {
   useEffect(() => {
     const checkSession = async () => {
       try {
+        console.log("Checking session in Auth page");
         const { data } = await supabase.auth.getSession();
         
         if (data.session) {
+          console.log("Session found, redirecting to dashboard");
           navigate("/dashboard");
+        } else {
+          console.log("No session found, staying on auth page");
         }
       } catch (error) {
         console.error("Error checking session:", error);
@@ -93,11 +94,8 @@ const Auth = () => {
       setIsLoading(true);
       console.log("Attempting login with:", data.email);
       
-      const cleanEmail = data.email.trim().toLowerCase();
-      console.log("Normalized email for login:", cleanEmail);
-      
       const { error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
+        email: data.email.trim().toLowerCase(),
         password: data.password,
       });
 
@@ -123,29 +121,8 @@ const Auth = () => {
       
       const cleanEmail = data.email.trim().toLowerCase();
       console.log("Attempting registration with email:", cleanEmail);
-      console.log("Form data:", JSON.stringify(data));
       
-      // Validazione manuale aggiuntiva
-      if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-        console.error("Email validation failed:", cleanEmail);
-        toast.error("Email non valida. Assicurati che contenga @ e un dominio valido.");
-        setIsLoading(false);
-        return;
-      }
-      
-      if (!cleanEmail || !data.password || !data.firstName || !data.lastName) {
-        console.error("Missing required fields:", { 
-          hasEmail: !!cleanEmail, 
-          hasPassword: !!data.password, 
-          hasFirstName: !!data.firstName, 
-          hasLastName: !!data.lastName 
-        });
-        toast.error("Tutti i campi sono obbligatori");
-        setIsLoading(false);
-        return;
-      }
-      
-      const { data: signUpData, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email: cleanEmail,
         password: data.password,
         options: {
@@ -155,20 +132,10 @@ const Auth = () => {
           },
         },
       });
-
-      console.log("SignUp response:", error ? "Error occurred" : "Success", 
-                  "User data:", signUpData?.user ? "User created" : "No user data");
       
       if (error) {
         console.error("Registration error details:", error);
-        
-        if (error.message.includes("email")) {
-          toast.error("Email non valida o già registrata");
-        } else if (error.message.includes("password")) {
-          toast.error("La password non è abbastanza sicura");
-        } else {
-          toast.error(error.message);
-        }
+        toast.error(error.message || "Si è verificato un errore durante la registrazione");
         return;
       }
 
@@ -187,7 +154,6 @@ const Auth = () => {
       setIsCreatingDemoUsers(true);
       toast.info("Creando utenti demo...");
       
-      // Display more detailed logs
       console.log("Invocando la funzione setup-initial-users...");
       
       const { data, error } = await supabase.functions.invoke('setup-initial-users');
@@ -208,18 +174,16 @@ const Auth = () => {
       
       toast.success("Utenti demo creati con successo!");
       
-      if (data.admin) {
-        // Auto-fill login form with admin credentials
-        loginForm.setValue('email', data.admin.email);
-        loginForm.setValue('password', data.admin.password);
-        
-        // Display credentials in toast
-        toast.info(`Admin: ${data.admin.email} / ${data.admin.password}`);
-        toast.info(`Client: ${data.client.email} / ${data.client.password}`);
-        
-        // Switch to login tab
-        setActiveTab("login");
-      }
+      // Auto-fill login form with admin credentials
+      loginForm.setValue('email', data.admin.email);
+      loginForm.setValue('password', data.admin.password);
+      
+      // Display credentials in toast
+      toast.info(`Admin: ${data.admin.email} / ${data.admin.password}`);
+      toast.info(`Client: ${data.client.email} / ${data.client.password}`);
+      
+      // Switch to login tab
+      setActiveTab("login");
     } catch (error: any) {
       console.error("Demo users exception:", error);
       toast.error(error.message || "Si è verificato un errore durante la creazione degli utenti demo");
@@ -228,8 +192,14 @@ const Auth = () => {
     }
   };
 
-  const handleGoogleSignIn = () => {
-    signInWithGoogle();
+  const handleGoogleSignIn = async () => {
+    try {
+      console.log("Starting Google sign in process");
+      await signInWithGoogle();
+    } catch (error) {
+      console.error("Error in handleGoogleSignIn:", error);
+      toast.error("Errore durante l'accesso con Google");
+    }
   };
 
   return (
@@ -314,6 +284,7 @@ const Auth = () => {
                     variant="outline"
                     className="w-full flex items-center justify-center gap-2"
                     onClick={handleGoogleSignIn}
+                    disabled={isLoading}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" className="h-4 w-4">
                       <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -416,6 +387,7 @@ const Auth = () => {
                     variant="outline"
                     className="w-full flex items-center justify-center gap-2"
                     onClick={handleGoogleSignIn}
+                    disabled={isLoading}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" className="h-4 w-4">
                       <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>

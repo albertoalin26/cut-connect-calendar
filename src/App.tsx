@@ -22,15 +22,13 @@ function App() {
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<AppLayout />}>
+            <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/appointments" element={<Appointments />} />
               <Route path="/appointments/new" element={<NewAppointment />} />
               <Route path="/clients" element={<Clients />} />
               <Route path="/services" element={<Services />} />
               <Route path="/working-hours" element={<WorkingHours />} />
-              {/* Redirect dashboard to appointments for clients */}
-              <Route path="/dashboard" element={<Navigate to="/appointments" replace />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
