@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, eachHourOfInterval, addMinutes, setHours, setMinutes, isSameDay, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { Card } from "@/components/ui/card";
 import { CalendarClock, Clock, User } from 'lucide-react';
+import AppointmentBookingModal from '@/components/appointments/AppointmentBookingModal';
 
 interface Appointment {
   id: number;
@@ -21,12 +22,23 @@ interface WeeklyCalendarViewProps {
   date: Date;
   appointments: Appointment[];
   onAppointmentClick?: (appointment: Appointment) => void;
+  isInteractive?: boolean;
+  onRefresh?: () => void;
 }
 
-const WeeklyCalendarView = ({ date, appointments, onAppointmentClick }: WeeklyCalendarViewProps) => {
+const WeeklyCalendarView = ({ 
+  date, 
+  appointments, 
+  onAppointmentClick, 
+  isInteractive = false,
+  onRefresh
+}: WeeklyCalendarViewProps) => {
   const startDate = startOfWeek(date, { locale: it });
   const endDate = endOfWeek(date, { locale: it });
   const days = eachDayOfInterval({ start: startDate, end: endDate });
+
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<{ date: Date, time: string } | null>(null);
 
   // Genera gli slot di tempo per ogni mezz'ora dalle 9:00 alle 18:00
   const generateTimeSlots = (day: Date) => {
@@ -61,6 +73,28 @@ const WeeklyCalendarView = ({ date, appointments, onAppointmentClick }: WeeklyCa
     });
   };
 
+  const handleSlotClick = (day: Date, time: Date) => {
+    if (!isInteractive) return;
+    
+    const timeString = format(time, "HH:mm");
+    const appointments = getAppointmentsForTimeSlot(day, time);
+    
+    // Se non ci sono appuntamenti per questo slot, apri il modal di prenotazione
+    if (appointments.length === 0) {
+      setSelectedSlot({
+        date: day,
+        time: timeString
+      });
+      setBookingModalOpen(true);
+    }
+  };
+
+  const handleBookingSuccess = () => {
+    if (onRefresh) {
+      onRefresh();
+    }
+  };
+
   return (
     <div className="overflow-x-auto">
       <div className="min-w-[800px]">
@@ -82,16 +116,22 @@ const WeeklyCalendarView = ({ date, appointments, onAppointmentClick }: WeeklyCa
             </div>
             {days.map((day) => {
               const dayAppointments = getAppointmentsForTimeSlot(day, timeSlot);
+              const isEmpty = dayAppointments.length === 0;
+              
               return (
                 <div
                   key={day.toString()}
-                  className="min-h-[40px] border rounded-sm p-1"
+                  className={`min-h-[40px] border rounded-sm p-1 ${isEmpty && isInteractive ? 'cursor-pointer hover:bg-primary/5' : ''}`}
+                  onClick={() => isEmpty && handleSlotClick(day, timeSlot)}
                 >
                   {dayAppointments.map((appointment) => (
                     <div
                       key={appointment.id}
                       className="text-xs bg-primary/10 rounded p-2 mb-1 cursor-pointer hover:bg-primary/20 transition-colors flex flex-col gap-1"
-                      onClick={() => onAppointmentClick && onAppointmentClick(appointment)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onAppointmentClick) onAppointmentClick(appointment);
+                      }}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1 font-medium">
@@ -112,6 +152,17 @@ const WeeklyCalendarView = ({ date, appointments, onAppointmentClick }: WeeklyCa
           </div>
         ))}
       </div>
+
+      {/* Modal di prenotazione */}
+      {selectedSlot && (
+        <AppointmentBookingModal
+          isOpen={bookingModalOpen}
+          onClose={() => setBookingModalOpen(false)}
+          date={selectedSlot.date}
+          time={selectedSlot.time}
+          onSuccess={handleBookingSuccess}
+        />
+      )}
     </div>
   );
 };

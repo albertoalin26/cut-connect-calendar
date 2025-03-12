@@ -1,5 +1,5 @@
 
-import { Calendar, Home, Scissors, Users, Clock, Settings } from "lucide-react";
+import { Calendar, Home, Scissors, Users, Clock, Settings, CalendarPlus, User } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -17,45 +17,13 @@ import {
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
-
-// Elementi di navigazione per la sidebar
-const items = [
-  {
-    title: "Dashboard",
-    path: "/",
-    icon: Home,
-  },
-  {
-    title: "Appuntamenti",
-    path: "/appointments",
-    icon: Calendar,
-  },
-  {
-    title: "Clienti",
-    path: "/clients",
-    icon: Users,
-  },
-  {
-    title: "Servizi",
-    path: "/services",
-    icon: Scissors,
-  },
-  {
-    title: "Orari di Lavoro",
-    path: "/working-hours",
-    icon: Clock,
-  },
-  {
-    title: "Impostazioni",
-    path: "/settings",
-    icon: Settings,
-  },
-];
+import { useAuth } from "@/contexts/AuthContext";
 
 export function AppSidebar() {
   const location = useLocation();
   const isMobile = useIsMobile();
   const { setOpenMobile } = useSidebar();
+  const { isAdmin } = useAuth();
   
   // Helper function to close the mobile sidebar when a link is clicked
   const handleNavClick = () => {
@@ -63,6 +31,62 @@ export function AppSidebar() {
       setOpenMobile(false);
     }
   };
+
+  // Elementi di navigazione per admin
+  const adminItems = [
+    {
+      title: "Dashboard",
+      path: "/dashboard",
+      icon: Home,
+    },
+    {
+      title: "Appuntamenti",
+      path: "/appointments",
+      icon: Calendar,
+    },
+    {
+      title: "Clienti",
+      path: "/clients",
+      icon: Users,
+    },
+    {
+      title: "Servizi",
+      path: "/services",
+      icon: Scissors,
+    },
+    {
+      title: "Orari di Lavoro",
+      path: "/working-hours",
+      icon: Clock,
+    },
+    {
+      title: "Impostazioni",
+      path: "/settings",
+      icon: Settings,
+    },
+  ];
+
+  // Elementi di navigazione per clienti
+  const clientItems = [
+    {
+      title: "I Miei Appuntamenti",
+      path: "/appointments",
+      icon: Calendar,
+    },
+    {
+      title: "Prenota",
+      path: "/appointments/new",
+      icon: CalendarPlus,
+    },
+    {
+      title: "Profilo",
+      path: "/profile",
+      icon: User,
+    },
+  ];
+  
+  // Seleziona i menu items in base al ruolo
+  const items = isAdmin ? adminItems : clientItems;
   
   return (
     <Sidebar>
@@ -75,7 +99,7 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Gestione Salone</SidebarGroupLabel>
+          <SidebarGroupLabel>{isAdmin ? "Gestione Salone" : "Area Cliente"}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (

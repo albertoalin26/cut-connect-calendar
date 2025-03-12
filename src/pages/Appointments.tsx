@@ -40,6 +40,8 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import WeeklyCalendarView from '@/components/calendar/WeeklyCalendarView';
+import ClientBookingView from '@/components/appointments/ClientBookingView';
+import AppointmentBookingModal from '@/components/appointments/AppointmentBookingModal';
 import { useAuth } from "@/contexts/AuthContext";
 
 const fasce_orarie = [
@@ -51,7 +53,7 @@ const fasce_orarie = [
 
 const Appointments = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [date, setDate] = useState<Date>(new Date());
   const [view, setView] = useState("day");
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
@@ -61,76 +63,80 @@ const Appointments = () => {
   const [clients, setClients] = useState<any[]>([]);
   const [isEmailSending, setIsEmailSending] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Per la prenotazione rapida
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
 
   // Fetch appointments from Supabase
-  useEffect(() => {
-    const fetchAppointments = async () => {
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('appointments')
-          .select('*');
-        
-        if (error) {
-          console.error("Error fetching appointments:", error);
-          toast.error("Errore nel caricamento degli appuntamenti");
-          return;
-        }
-        
-        // Transform appointments to match the expected format
-        const formattedAppointments = data.map(appointment => ({
-          id: appointment.id,
-          client: appointment.client_id, // Will be replaced with profile info
-          service: appointment.service,
-          duration: appointment.duration,
-          time: appointment.time,
-          status: appointment.status,
-          avatar: "CL",
-          date: new Date(appointment.date),
-          notes: appointment.notes || ''
-        }));
-        
-        // Fetch client profiles for each appointment
-        const clientProfiles = await Promise.all(
-          formattedAppointments.map(async (appointment) => {
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', appointment.client)
-              .single();
-            
-            if (profileError) {
-              console.error("Error fetching client profile:", profileError);
-              return appointment;
-            }
-            
-            // Create initials for avatar
-            const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
-            const initials = fullName
-              .split(' ')
-              .map(n => n[0])
-              .join('')
-              .toUpperCase()
-              .substring(0, 2) || 'CL';
-            
-            return {
-              ...appointment,
-              client: fullName || 'Cliente Sconosciuto',
-              clientEmail: profileData.email,
-              avatar: initials
-            };
-          })
-        );
-        
-        setAppointments(clientProfiles);
-      } catch (error) {
-        console.error("Unexpected error fetching appointments:", error);
+  const fetchAppointments = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*');
+      
+      if (error) {
+        console.error("Error fetching appointments:", error);
         toast.error("Errore nel caricamento degli appuntamenti");
-      } finally {
-        setIsLoading(false);
+        return;
       }
-    };
+      
+      // Transform appointments to match the expected format
+      const formattedAppointments = data.map(appointment => ({
+        id: appointment.id,
+        client: appointment.client_id, // Will be replaced with profile info
+        service: appointment.service,
+        duration: appointment.duration,
+        time: appointment.time,
+        status: appointment.status,
+        avatar: "CL",
+        date: new Date(appointment.date),
+        notes: appointment.notes || ''
+      }));
+      
+      // Fetch client profiles for each appointment
+      const clientProfiles = await Promise.all(
+        formattedAppointments.map(async (appointment) => {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', appointment.client)
+            .single();
+          
+          if (profileError) {
+            console.error("Error fetching client profile:", profileError);
+            return appointment;
+          }
+          
+          // Create initials for avatar
+          const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
+          const initials = fullName
+            .split(' ')
+            .map(n => n[0])
+            .join('')
+            .toUpperCase()
+            .substring(0, 2) || 'CL';
+          
+          return {
+            ...appointment,
+            client: fullName || 'Cliente Sconosciuto',
+            clientEmail: profileData.email,
+            avatar: initials
+          };
+        })
+      );
+      
+      setAppointments(clientProfiles);
+    } catch (error) {
+      console.error("Unexpected error fetching appointments:", error);
+      toast.error("Errore nel caricamento degli appuntamenti");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     // Load clients from profiles table
     const fetchClients = async () => {
       try {
@@ -271,6 +277,26 @@ const Appointments = () => {
     }
   };
 
+  // Handler per aprire il modale di prenotazione quando si clicca su uno slot orario vuoto
+  const handleTimeSlotClick = (time: string) => {
+    const timeAppointments = appointments.filter(app => 
+      app.time === time && 
+      new Date(app.date).getDate() === date.getDate() &&
+      new Date(app.date).getMonth() === date.getMonth() &&
+      new Date(app.date).getFullYear() === date.getFullYear()
+    );
+    
+    // Se lo slot è libero, mostra il modale di prenotazione
+    if (timeAppointments.length === 0) {
+      setSelectedTimeSlot(time);
+      setIsBookingModalOpen(true);
+    }
+  };
+
+  const handleBookingSuccess = () => {
+    fetchAppointments();
+  };
+
   const sendEmailNotification = async (
     email: string,
     clientName: string,
@@ -355,43 +381,56 @@ const Appointments = () => {
       new Date(app.date).getFullYear() === date.getFullYear()
     );
     
+    const isSlotEmpty = timeAppointments.length === 0;
+    
     return (
       <div key={time} className="flex items-start gap-2 py-2 border-t border-border">
         <div className="w-20 text-sm text-muted-foreground pt-2">{time}</div>
         <div className="flex-1">
-          {timeAppointments.map(appointment => (
-            <Card key={appointment.id} className="mb-2 appointment-card bg-secondary/50">
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback>{appointment.avatar}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium text-sm">{appointment.client}</p>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Scissors className="h-3 w-3" />
-                        <span>{appointment.service}</span>
+          {timeAppointments.length > 0 ? (
+            timeAppointments.map(appointment => (
+              <Card key={appointment.id} className="mb-2 appointment-card bg-secondary/50">
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>{appointment.avatar}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium text-sm">{appointment.client}</p>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Scissors className="h-3 w-3" />
+                          <span>{appointment.service}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge 
-                      variant={appointment.status === "confermato" ? "default" : "outline"}
-                      className="text-xs"
-                    >
-                      {appointment.status}
-                    </Badge>
-                    <div className="flex items-center text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3 mr-1" />
-                      {appointment.duration}
+                    <div className="flex items-center gap-2">
+                      <Badge 
+                        variant={appointment.status === "confermato" ? "default" : "outline"}
+                        className="text-xs"
+                      >
+                        {appointment.status}
+                      </Badge>
+                      <div className="flex items-center text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {appointment.duration}
+                      </div>
+                      {renderAppointmentActions(appointment)}
                     </div>
-                    {renderAppointmentActions(appointment)}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <Button 
+              variant="ghost" 
+              className="w-full h-10 border border-dashed border-muted-foreground/20 text-muted-foreground hover:bg-primary/5"
+              onClick={() => handleTimeSlotClick(time)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Slot disponibile
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -410,7 +449,9 @@ const Appointments = () => {
           <WeeklyCalendarView 
             date={date} 
             appointments={appointments}
-            onAppointmentClick={handleViewAppointment} 
+            onAppointmentClick={handleViewAppointment}
+            isInteractive={true}
+            onRefresh={fetchAppointments}
           />
         </CardContent>
       </Card>
@@ -453,6 +494,10 @@ const Appointments = () => {
                   ? "bg-accent/30"
                   : ""
               }`}
+              onClick={() => {
+                setDate(day);
+                setView("day");
+              }}
             >
               <div className="text-right text-sm font-medium mb-1">
                 {format(day, "d", { locale: it })}
@@ -460,7 +505,11 @@ const Appointments = () => {
               {dayAppointments.map((appointment) => (
                 <div 
                   key={appointment.id}
-                  className="text-xs p-1 mb-1 rounded bg-primary/10 truncate"
+                  className="text-xs p-1 mb-1 rounded bg-primary/10 truncate cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleViewAppointment(appointment);
+                  }}
                 >
                   {appointment.time} - {appointment.client}
                 </div>
@@ -471,6 +520,22 @@ const Appointments = () => {
       </div>
     );
   };
+
+  // Se l'utente non è admin, mostra la vista client
+  if (!isAdmin) {
+    return (
+      <div className="space-y-8 animate-slide-in">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">I Tuoi Appuntamenti</h2>
+            <p className="text-muted-foreground">Prenota e gestisci i tuoi appuntamenti</p>
+          </div>
+        </div>
+        
+        <ClientBookingView />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-slide-in">
@@ -754,6 +819,15 @@ const Appointments = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Booking Modal per gli slot vuoti */}
+      <AppointmentBookingModal
+        isOpen={isBookingModalOpen}
+        onClose={() => setIsBookingModalOpen(false)}
+        date={date}
+        time={selectedTimeSlot || ""}
+        onSuccess={handleBookingSuccess}
+      />
     </div>
   );
 };

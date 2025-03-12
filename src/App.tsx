@@ -1,5 +1,5 @@
 
-import { Routes, Route, BrowserRouter } from "react-router-dom";
+import { Routes, Route, BrowserRouter, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import AppLayout from "@/components/layout/AppLayout";
@@ -29,6 +29,8 @@ function App() {
               <Route path="/clients" element={<Clients />} />
               <Route path="/services" element={<Services />} />
               <Route path="/working-hours" element={<WorkingHours />} />
+              {/* Redirect dashboard to appointments for clients */}
+              <Route path="/dashboard" element={<Navigate to="/appointments" replace />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
