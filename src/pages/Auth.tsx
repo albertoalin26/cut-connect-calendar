@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ const Auth = () => {
   const { user, signInWithGoogle } = useAuth();
   const [checkingAuth, setCheckingAuth] = useState(true);
 
+  // Only check once on mount to prevent loops
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -60,10 +62,10 @@ const Auth = () => {
         const { data } = await supabase.auth.getSession();
         
         if (data.session) {
-          console.log("Session found, redirecting to dashboard");
-          navigate("/dashboard");
+          console.log("Session found in Auth page, redirecting to dashboard");
+          navigate("/dashboard", { replace: true });
         } else {
-          console.log("No session found, staying on auth page");
+          console.log("No session found in Auth page, staying on auth page");
         }
       } catch (error) {
         console.error("Error checking session:", error);
@@ -72,15 +74,14 @@ const Auth = () => {
       }
     };
     
-    // Only check once on mount
     checkSession();
   }, [navigate]);
 
-  // Separate effect to watch for user changes
+  // Only redirect if user is detected and not already checking auth
   useEffect(() => {
     if (user && !checkingAuth) {
-      console.log("User detected, redirecting to dashboard");
-      navigate("/dashboard");
+      console.log("User detected in Auth page, redirecting to dashboard");
+      navigate("/dashboard", { replace: true });
     }
   }, [user, navigate, checkingAuth]);
 
@@ -119,7 +120,7 @@ const Auth = () => {
       }
 
       toast.success("Login effettuato con successo!");
-      navigate("/dashboard");
+      // Let the useEffect handle the redirect
     } catch (error: any) {
       console.error("Login exception:", error);
       toast.error(error.message || "Si è verificato un errore durante il login");

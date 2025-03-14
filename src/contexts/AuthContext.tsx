@@ -57,6 +57,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (error) {
           console.error("Error getting session:", error);
+          setSession(null);
+          setUser(null);
+          setUserRole(null);
           setIsLoading(false);
           return;
         }
@@ -81,6 +84,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error("Exception fetching session:", error);
+        // Ensure state is cleared on error
+        setSession(null);
+        setUser(null);
+        setUserRole(null);
       } finally {
         setIsLoading(false);
       }

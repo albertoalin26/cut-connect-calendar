@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
@@ -13,12 +13,8 @@ const AppLayout = () => {
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!isLoading && !user) {
-      console.log("User not authenticated, redirecting to auth page");
-      navigate("/auth");
-    }
-  }, [user, isLoading, navigate]);
+  // Redirection is now handled by ProtectedRoute in App.tsx
+  // This component only manages layout and renders loading state
 
   if (isLoading) {
     return (
@@ -29,7 +25,7 @@ const AppLayout = () => {
   }
 
   if (!user) {
-    return null;
+    return null; // This condition should never happen due to ProtectedRoute, but just in case
   }
 
   return (
