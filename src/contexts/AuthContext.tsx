@@ -14,6 +14,7 @@ interface AuthContextType {
   isAdmin: boolean;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithPassword: (email: string, password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -176,6 +177,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signInWithPassword = async (email: string, password: string) => {
+    try {
+      console.log("Attempting to sign in with email/password:", email);
+      setIsLoading(true);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password,
+      });
+      
+      if (error) {
+        console.error("Login error:", error);
+        toast.error(error.message || "Credenziali non valide");
+        return;
+      }
+      
+      console.log("Login successful:", data.user?.email);
+      toast.success("Login effettuato con successo!");
+      
+      // Session and user will be updated by the onAuthStateChange listener
+    } catch (error: any) {
+      console.error("Exception during login:", error);
+      toast.error(error.message || "Si è verificato un errore durante il login");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const value = {
     session,
     user,
@@ -184,6 +213,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAdmin: userRole === "admin",
     signOut,
     signInWithGoogle,
+    signInWithPassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

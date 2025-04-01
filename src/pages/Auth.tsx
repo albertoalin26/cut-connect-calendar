@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -50,7 +49,7 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
   const [isCreatingDemoUsers, setIsCreatingDemoUsers] = useState(false);
-  const { user, signInWithGoogle } = useAuth();
+  const { user, signInWithGoogle, signInWithPassword } = useAuth();
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   // Only check once on mount to prevent loops
@@ -105,27 +104,11 @@ const Auth = () => {
 
   const onLoginSubmit = async (data: LoginFormValues) => {
     try {
-      setIsLoading(true);
       console.log("Attempting login with:", data.email);
-      
-      const { error } = await supabase.auth.signInWithPassword({
-        email: data.email.trim().toLowerCase(),
-        password: data.password,
-      });
-
-      if (error) {
-        console.error("Login error:", error);
-        toast.error(error.message || "Credenziali non valide");
-        return;
-      }
-
-      toast.success("Login effettuato con successo!");
-      // Let the useEffect handle the redirect
+      await signInWithPassword(data.email, data.password);
+      // Redirect is handled by the useEffect watching for user changes
     } catch (error: any) {
       console.error("Login exception:", error);
-      toast.error(error.message || "Si è verificato un errore durante il login");
-    } finally {
-      setIsLoading(false);
     }
   };
 
