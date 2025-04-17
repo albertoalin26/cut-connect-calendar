@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,114 +15,144 @@ import { Calendar, Mail, Phone, Plus, Search, User } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-
-// Mock client data
-const clientsData = [
-  {
-    id: 1,
-    name: "Emma Johnson",
-    email: "emma@example.com",
-    phone: "(555) 123-4567",
-    lastVisit: "Oct 15, 2023",
-    appointmentsCount: 12,
-    avatar: "EJ",
-    notes: "Prefers natural hair products",
-  },
-  {
-    id: 2,
-    name: "Michael Smith",
-    email: "michael@example.com",
-    phone: "(555) 234-5678",
-    lastVisit: "Nov 3, 2023",
-    appointmentsCount: 8,
-    avatar: "MS",
-    notes: "Has color sensitivities, check product ingredients",
-  },
-  {
-    id: 3,
-    name: "Sophia Garcia",
-    email: "sophia@example.com",
-    phone: "(555) 345-6789",
-    lastVisit: "Dec 20, 2023",
-    appointmentsCount: 5,
-    avatar: "SG",
-    notes: "Likes to maintain short hairstyles",
-  },
-  {
-    id: 4,
-    name: "Daniel Brown",
-    email: "daniel@example.com",
-    phone: "(555) 456-7890",
-    lastVisit: "Jan 8, 2024",
-    appointmentsCount: 7,
-    avatar: "DB",
-    notes: "Usually books haircut and beard trim together",
-  },
-  {
-    id: 5,
-    name: "Olivia Wilson",
-    email: "olivia@example.com",
-    phone: "(555) 567-8901",
-    lastVisit: "Feb 12, 2024",
-    appointmentsCount: 4,
-    avatar: "OW",
-    notes: "Prefers appointments in the afternoon",
-  },
-];
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Clients = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [clients, setClients] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [newClient, setNewClient] = useState({
-    name: "",
+    first_name: "",
+    last_name: "",
     email: "",
     phone: "",
-    notes: "",
   });
 
-  const filteredClients = clientsData.filter(client =>
-    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.phone.includes(searchTerm)
-  );
+  const { user } = useAuth();
 
-  const handleAddClient = () => {
-    console.log("Adding new client:", newClient);
-    toast.success("Client added successfully!");
-    setDialogOpen(false);
-    setNewClient({ name: "", email: "", phone: "", notes: "" });
+  useEffect(() => {
+    const fetchClients = async () => {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*');
+        
+        if (error) {
+          console.error("Error fetching clients:", error);
+          toast.error("Errore nel caricamento dei clienti");
+          return;
+        }
+        
+        const formattedClients = data.map(profile => ({
+          ...profile,
+          name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Cliente Sconosciuto',
+          avatar: `${profile.first_name?.[0] || ''}${profile.last_name?.[0] || ''}`,
+          lastVisit: 'Non disponibile',
+          appointmentsCount: 0
+        }));
+        
+        setClients(formattedClients);
+      } catch (error) {
+        console.error("Unexpected error fetching clients:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchClients();
+  }, [user]);
+
+  const handleAddClient = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert([{
+          first_name: newClient.first_name,
+          last_name: newClient.last_name,
+          email: newClient.email,
+          phone: newClient.phone
+        }])
+        .select();
+
+      if (error) {
+        console.error("Error adding client:", error);
+        toast.error("Errore nell'aggiunta del cliente");
+        return;
+      }
+
+      if (data) {
+        const newClientProfile = {
+          ...data[0],
+          name: `${data[0].first_name || ''} ${data[0].last_name || ''}`.trim(),
+          avatar: `${data[0].first_name?.[0] || ''}${data[0].last_name?.[0] || ''}`,
+          lastVisit: 'Non disponibile',
+          appointmentsCount: 0
+        };
+
+        setClients(prevClients => [...prevClients, newClientProfile]);
+        toast.success("Cliente aggiunto con successo!");
+        setDialogOpen(false);
+        setNewClient({ first_name: "", last_name: "", email: "", phone: "" });
+      }
+    } catch (error) {
+      console.error("Unexpected error:", error);
+      toast.error("Errore nell'aggiunta del cliente");
+    }
   };
+
+  const filteredClients = clients.filter(client =>
+    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (client.email && client.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (client.phone && client.phone.includes(searchTerm))
+  );
 
   return (
     <div className="space-y-8 animate-slide-in">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Clients</h2>
-          <p className="text-muted-foreground">Manage your client information</p>
+          <h2 className="text-3xl font-bold tracking-tight">Clienti</h2>
+          <p className="text-muted-foreground">Gestisci le informazioni dei clienti</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
-              <span>Add Client</span>
+              <span>Aggiungi Cliente</span>
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Add New Client</DialogTitle>
+              <DialogTitle>Aggiungi Nuovo Cliente</DialogTitle>
               <DialogDescription>
-                Enter the client's information below
+                Inserisci le informazioni del cliente
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={newClient.name}
-                  onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
-                  placeholder="Enter full name"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="first_name">Nome</Label>
+                  <Input
+                    id="first_name"
+                    value={newClient.first_name}
+                    onChange={(e) => setNewClient({ ...newClient, first_name: e.target.value })}
+                    placeholder="Nome"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="last_name">Cognome</Label>
+                  <Input
+                    id="last_name"
+                    value={newClient.last_name}
+                    onChange={(e) => setNewClient({ ...newClient, last_name: e.target.value })}
+                    placeholder="Cognome"
+                  />
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
@@ -132,33 +161,24 @@ const Clients = () => {
                   type="email"
                   value={newClient.email}
                   onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
-                  placeholder="Enter email address"
+                  placeholder="Indirizzo email"
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">Telefono</Label>
                 <Input
                   id="phone"
                   value={newClient.phone}
                   onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
-                  placeholder="Enter phone number"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Input
-                  id="notes"
-                  value={newClient.notes}
-                  onChange={(e) => setNewClient({ ...newClient, notes: e.target.value })}
-                  placeholder="Any additional information"
+                  placeholder="Numero di telefono"
                 />
               </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
+                Annulla
               </Button>
-              <Button type="button" onClick={handleAddClient}>Add Client</Button>
+              <Button type="button" onClick={handleAddClient}>Aggiungi Cliente</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -168,7 +188,7 @@ const Clients = () => {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search clients by name, email, or phone..."
+            placeholder="Cerca clienti per nome, email o telefono..."
             className="pl-10"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -177,75 +197,85 @@ const Clients = () => {
 
         <Tabs defaultValue="all" className="w-full">
           <TabsList>
-            <TabsTrigger value="all">All Clients</TabsTrigger>
-            <TabsTrigger value="recent">Recent</TabsTrigger>
-            <TabsTrigger value="frequent">Frequent</TabsTrigger>
+            <TabsTrigger value="all">Tutti i Clienti</TabsTrigger>
+            <TabsTrigger value="recent">Recenti</TabsTrigger>
+            <TabsTrigger value="frequent">Frequenti</TabsTrigger>
           </TabsList>
           <TabsContent value="all" className="mt-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle>Client List</CardTitle>
+                <CardTitle>Elenco Clienti</CardTitle>
                 <CardDescription>
-                  {filteredClients.length} total clients
+                  {filteredClients.length} clienti totali
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {filteredClients.length > 0 ? (
-                    filteredClients.map((client) => (
-                      <div
-                        key={client.id}
-                        className="flex flex-col sm:flex-row sm:justify-between p-4 rounded-lg appointment-card bg-secondary/50"
-                      >
-                        <div className="flex items-start gap-4 mb-3 sm:mb-0">
-                          <Avatar className="h-10 w-10 border border-border">
-                            <AvatarFallback>{client.avatar}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <h4 className="font-medium">{client.name}</h4>
-                            <div className="flex flex-col sm:flex-row sm:gap-4 text-sm text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <Mail className="h-3.5 w-3.5" />
-                                <span>{client.email}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Phone className="h-3.5 w-3.5" />
-                                <span>{client.phone}</span>
+                {isLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Caricamento clienti...
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredClients.length > 0 ? (
+                      filteredClients.map((client) => (
+                        <div
+                          key={client.id}
+                          className="flex flex-col sm:flex-row sm:justify-between p-4 rounded-lg appointment-card bg-secondary/50"
+                        >
+                          <div className="flex items-start gap-4 mb-3 sm:mb-0">
+                            <Avatar className="h-10 w-10 border border-border">
+                              <AvatarFallback>{client.avatar}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <h4 className="font-medium">{client.name}</h4>
+                              <div className="flex flex-col sm:flex-row sm:gap-4 text-sm text-muted-foreground">
+                                {client.email && (
+                                  <div className="flex items-center gap-1">
+                                    <Mail className="h-3.5 w-3.5" />
+                                    <span>{client.email}</span>
+                                  </div>
+                                )}
+                                {client.phone && (
+                                  <div className="flex items-center gap-1">
+                                    <Phone className="h-3.5 w-3.5" />
+                                    <span>{client.phone}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex flex-row sm:flex-col items-center sm:items-end gap-4 sm:gap-1">
-                          <div className="text-sm flex items-center gap-1">
-                            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>Last visit: {client.lastVisit}</span>
+                          <div className="flex flex-row sm:flex-col items-center sm:items-end gap-4 sm:gap-1">
+                            <div className="text-sm flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span>Ultima visita: {client.lastVisit}</span>
+                            </div>
+                            <Badge variant="outline" className="rounded-full">
+                              {client.appointmentsCount} appuntamenti
+                            </Badge>
                           </div>
-                          <Badge variant="outline" className="rounded-full">
-                            {client.appointmentsCount} appointments
-                          </Badge>
                         </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Nessun cliente corrisponde alla ricerca. Prova parole chiave diverse o aggiungi un nuovo cliente.
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No clients match your search. Try different keywords or add a new client.
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
           <TabsContent value="recent" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>Recent Clients</CardTitle>
+                <CardTitle>Recenti Clienti</CardTitle>
                 <CardDescription>
-                  Clients who visited in the last 30 days
+                  Clienti che hanno visitato negli ultimi 30 giorni
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-center py-8 text-muted-foreground">
-                  Recent clients view will be implemented in the next update.
+                  Visualizzazione recenti clienti in corso di implementazione.
                 </div>
               </CardContent>
             </Card>
@@ -253,14 +283,14 @@ const Clients = () => {
           <TabsContent value="frequent" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>Frequent Clients</CardTitle>
+                <CardTitle>Frequenti Clienti</CardTitle>
                 <CardDescription>
-                  Clients with the most appointments
+                  Clienti con il maggior numero di appuntamenti
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="text-center py-8 text-muted-foreground">
-                  Frequent clients view will be implemented in the next update.
+                  Visualizzazione clienti frequenti in corso di implementazione.
                 </div>
               </CardContent>
             </Card>
