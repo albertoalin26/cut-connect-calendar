@@ -53,22 +53,26 @@ const Auth = () => {
   const { user, signInWithGoogle, signInWithPassword } = useAuth();
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // Only check once on mount to prevent loops
+  // Check authentication status on mount
   useEffect(() => {
+    console.log("Auth component mounted, checking session");
+    
     const checkSession = async () => {
       try {
-        console.log("Checking session in Auth page (once)");
         setCheckingAuth(true);
+        console.log("Checking for existing session");
+        
         const { data } = await supabase.auth.getSession();
         
         if (data.session) {
-          console.log("Session found in Auth page, redirecting to dashboard");
+          console.log("Active session found, redirecting to dashboard", data.session.user.email);
           navigate("/dashboard", { replace: true });
         } else {
-          console.log("No session found in Auth page, staying on auth page");
+          console.log("No active session found, staying on auth page");
         }
       } catch (error) {
         console.error("Error checking session:", error);
+        toast.error("Errore durante la verifica della sessione");
       } finally {
         setCheckingAuth(false);
       }
@@ -77,10 +81,10 @@ const Auth = () => {
     checkSession();
   }, [navigate]);
 
-  // Only redirect if user is detected and not already checking auth
+  // Redirect if authenticated
   useEffect(() => {
     if (user && !checkingAuth) {
-      console.log("User detected in Auth page, redirecting to dashboard");
+      console.log("User authenticated in state, redirecting to dashboard", user.email);
       navigate("/dashboard", { replace: true });
     }
   }, [user, navigate, checkingAuth]);
@@ -105,11 +109,22 @@ const Auth = () => {
 
   const onLoginSubmit = async (data: LoginFormValues) => {
     try {
+      setIsLoading(true);
       console.log("Attempting login with:", data.email);
+      
+      if (!data.email || !data.password) {
+        toast.error("Email e password sono obbligatori");
+        setIsLoading(false);
+        return;
+      }
+      
       await signInWithPassword(data.email, data.password);
       // Redirect is handled by the useEffect watching for user changes
     } catch (error: any) {
       console.error("Login exception:", error);
+      toast.error("Errore durante il login. Riprova.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -192,17 +207,26 @@ const Auth = () => {
 
   const handleGoogleSignIn = async () => {
     try {
+      setIsLoading(true);
       console.log("Starting Google sign in process");
       await signInWithGoogle();
     } catch (error) {
       console.error("Error in handleGoogleSignIn:", error);
       toast.error("Errore durante l'accesso con Google");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const debugLogin = async () => {
     try {
       console.log("Debug: Verificando l'autenticazione...");
+      
+      // First, show loading state
+      setIsLoading(true);
+      toast.info("Tentativo di debug login in corso...");
+      
+      // Check current authentication status
       const { data, error } = await supabase.auth.getSession();
       
       if (error) {
@@ -219,21 +243,46 @@ const Auth = () => {
         navigate("/dashboard", { replace: true });
       } else {
         console.log("Debug - Nessuna sessione attiva");
-        toast.info("Nessuna sessione attiva. Prova ad accedere");
+        toast.info("Nessuna sessione attiva. Tentativo di login automatico...");
         
         // Insert the demo credentials
-        loginForm.setValue('email', 'achi@salone.it');
-        loginForm.setValue('password', 'Password123!');
-        toast.info("Credenziali demo inserite. Premi Accedi");
+        const demoEmail = 'achi@salone.it';
+        const demoPassword = 'Password123!';
         
-        // Try a direct login attempt
-        signInWithPassword('achi@salone.it', 'Password123!').then(() => {
-          toast.info("Tentativo di login automatico eseguito");
-        });
+        loginForm.setValue('email', demoEmail);
+        loginForm.setValue('password', demoPassword);
+        
+        toast.info(`Credenziali inserite: ${demoEmail} / ${demoPassword}`);
+        
+        // Try an automatic login
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: demoEmail,
+            password: demoPassword,
+          });
+          
+          if (error) {
+            console.error("Debug login error:", error);
+            toast.error(`Errore login: ${error.message}`);
+          } else if (data && data.user) {
+            console.log("Debug login successful:", data.user.email);
+            toast.success("Debug login riuscito!");
+            
+            // Force redirect after short delay
+            setTimeout(() => {
+              navigate("/dashboard", { replace: true });
+            }, 1500);
+          }
+        } catch (loginError) {
+          console.error("Exception during debug login:", loginError);
+          toast.error("Eccezione durante il login automatico");
+        }
       }
     } catch (error) {
       console.error("Debug exception:", error);
       toast.error("Errore durante il debug");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -241,6 +290,7 @@ const Auth = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-2">Verifica sessione in corso...</span>
       </div>
     );
   }
@@ -308,7 +358,12 @@ const Auth = () => {
                     )}
                   />
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Accesso in corso..." : "Accedi"}
+                    {isLoading ? (
+                      <span className="flex items-center">
+                        <span className="animate-spin h-4 w-4 mr-2 border-2 border-b-transparent rounded-full"></span>
+                        Accesso in corso...
+                      </span>
+                    ) : "Accedi"}
                   </Button>
 
                   <div className="relative my-4">
@@ -411,7 +466,12 @@ const Auth = () => {
                     )}
                   />
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Registrazione in corso..." : "Registrati"}
+                    {isLoading ? (
+                      <span className="flex items-center">
+                        <span className="animate-spin h-4 w-4 mr-2 border-2 border-b-transparent rounded-full"></span>
+                        Registrazione in corso...
+                      </span>
+                    ) : "Registrati"}
                   </Button>
 
                   <div className="relative my-4">
@@ -463,22 +523,35 @@ const Auth = () => {
                 variant="outline" 
                 className="w-full flex items-center gap-2" 
                 onClick={createDemoUsers}
-                disabled={isCreatingDemoUsers}
+                disabled={isCreatingDemoUsers || isLoading}
               >
                 <UserPlus className="h-4 w-4" />
-                {isCreatingDemoUsers ? "Creazione utenti in corso..." : "Crea utenti demo"}
+                {isCreatingDemoUsers ? (
+                  <span className="flex items-center">
+                    <span className="animate-spin h-4 w-4 mr-2 border-2 border-b-transparent rounded-full"></span>
+                    Creazione in corso...
+                  </span>
+                ) : "Crea utenti demo"}
               </Button>
 
               <Button
                 variant="ghost"
                 className="w-full text-xs text-muted-foreground"
                 onClick={debugLogin}
+                disabled={isLoading}
               >
-                Debug Login
+                {isLoading ? (
+                  <span className="flex items-center">
+                    <span className="animate-spin h-4 w-4 mr-2 border-2 border-b-transparent rounded-full"></span>
+                    Debug in corso...
+                  </span>
+                ) : "Debug Login (Login Automatico)"}
               </Button>
               
               <p className="text-xs text-muted-foreground mt-1 text-center">
-                Crea un admin (achi@salone.it) e un cliente (alberto@cliente.it)
+                Credenziali Demo: <br />
+                Admin: achi@salone.it / Password123! <br />
+                Cliente: alberto@cliente.it / Password123!
               </p>
             </div>
           </CardFooter>

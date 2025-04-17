@@ -49,18 +49,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    const fetchInitialSession = async () => {
+    const initializeAuth = async () => {
       try {
         setIsLoading(true);
-        console.log("Fetching initial session...");
+        console.log("Initializing authentication...");
         
+        // First set up the auth state change listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, newSession) => {
+            console.log("Auth state changed:", event, newSession?.user?.email);
+            
+            if (event === 'SIGNED_OUT' || !newSession) {
+              console.log("User signed out or no session, clearing state");
+              setSession(null);
+              setUser(null);
+              setUserRole(null);
+            } else if (newSession) {
+              console.log("Setting new session:", newSession.user.email);
+              setSession(newSession);
+              setUser(newSession.user);
+              
+              // Fetch user role
+              const role = await fetchUserRole(newSession.user.id);
+              setUserRole(role);
+              console.log("Updated user role:", role);
+            }
+            
+            setIsLoading(false);
+          }
+        );
+        
+        // Then check for existing session
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error("Error getting session:", error);
-          setSession(null);
-          setUser(null);
-          setUserRole(null);
+          console.error("Error getting initial session:", error);
           return;
         }
         
@@ -68,62 +91,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (data.session) {
           console.log("User authenticated:", data.session.user.email);
-          console.log("User metadata:", data.session.user.user_metadata);
           
           setSession(data.session);
           setUser(data.session.user);
           
           const role = await fetchUserRole(data.session.user.id);
-          console.log("User role:", role);
           setUserRole(role);
-        } else {
-          // Clear state when no session is found
-          setSession(null);
-          setUser(null);
-          setUserRole(null);
         }
+        
+        // Clean up auth listener on unmount
+        return () => {
+          console.log("Cleaning up auth subscription");
+          subscription.unsubscribe();
+        };
       } catch (error) {
-        console.error("Exception fetching session:", error);
-        // Ensure state is cleared on error
-        setSession(null);
-        setUser(null);
-        setUserRole(null);
+        console.error("Exception in auth initialization:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Ensure initial session is fetched
-    fetchInitialSession();
-
-    // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        console.log("Auth state changed:", event, newSession?.user?.email);
-        
-        if (event === 'SIGNED_OUT' || !newSession) {
-          // Clear state on sign out or when session is null
-          setSession(null);
-          setUser(null);
-          setUserRole(null);
-          console.log("User signed out or no session, state cleared");
-        } else if (newSession) {
-          console.log("Setting new session:", newSession.user.email);
-          setSession(newSession);
-          setUser(newSession.user);
-          
-          const role = await fetchUserRole(newSession.user.id);
-          setUserRole(role);
-          console.log("Updated user role:", role);
-        }
-        
-        setIsLoading(false);
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    initializeAuth();
   }, []);
 
   const signOut = async () => {
@@ -137,11 +125,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error(error.message || "Si è verificato un errore durante il logout");
         return;
       }
-      
-      // Explicitly clear state after logout
-      setUser(null);
-      setSession(null);
-      setUserRole(null);
       
       console.log("Sign out successful");
       toast.success("Logout effettuato con successo");
@@ -187,7 +170,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!email || !password) {
         console.error("Email or password missing");
         toast.error("Email e password sono obbligatori");
-        setIsLoading(false);
         return;
       }
       
