@@ -5,303 +5,330 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Mail, Phone, Plus, Search, User } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { UserPlus, Loader2 } from "lucide-react";
+import { useAuthGuard } from "@/hooks/use-auth-guard";
+import { z } from "zod";
+
+interface Client {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+}
 
 const Clients = () => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [clients, setClients] = useState<any[]>([]);
+  useAuthGuard(true);
+  
+  const { toast } = useToast();
+  const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [newClient, setNewClient] = useState({
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
     email: "",
     phone: "",
   });
-
-  const { user } = useAuth();
+  
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    const fetchClients = async () => {
-      if (!user) return;
-
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*');
-        
-        if (error) {
-          console.error("Error fetching clients:", error);
-          toast.error("Errore nel caricamento dei clienti");
-          return;
-        }
-        
-        const formattedClients = data.map(profile => ({
-          ...profile,
-          name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Cliente Sconosciuto',
-          avatar: `${profile.first_name?.[0] || ''}${profile.last_name?.[0] || ''}`,
-          lastVisit: 'Non disponibile',
-          appointmentsCount: 0
-        }));
-        
-        setClients(formattedClients);
-      } catch (error) {
-        console.error("Unexpected error fetching clients:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchClients();
-  }, [user]);
-
-  const handleAddClient = async () => {
-    if (!user) return;
-
+  }, []);
+  
+  const fetchClients = async () => {
     try {
-      // Generate a unique ID for the new profile
-      const newId = crypto.randomUUID();
-      
+      setIsLoading(true);
       const { data, error } = await supabase
-        .from('profiles')
-        .insert([{
-          id: newId, // Add the required ID field
-          first_name: newClient.first_name,
-          last_name: newClient.last_name,
-          email: newClient.email,
-          phone: newClient.phone
-        }])
-        .select();
-
-      if (error) {
-        console.error("Error adding client:", error);
-        toast.error("Errore nell'aggiunta del cliente");
-        return;
-      }
-
-      if (data) {
-        const newClientProfile = {
-          ...data[0],
-          name: `${data[0].first_name || ''} ${data[0].last_name || ''}`.trim(),
-          avatar: `${data[0].first_name?.[0] || ''}${data[0].last_name?.[0] || ''}`,
-          lastVisit: 'Non disponibile',
-          appointmentsCount: 0
-        };
-
-        setClients(prevClients => [...prevClients, newClientProfile]);
-        toast.success("Cliente aggiunto con successo!");
-        setDialogOpen(false);
-        setNewClient({ first_name: "", last_name: "", email: "", phone: "" });
-      }
-    } catch (error) {
-      console.error("Unexpected error:", error);
-      toast.error("Errore nell'aggiunta del cliente");
+        .from("profiles")
+        .select("*")
+        .eq("id", "00000000-0000-0000-0000-000000000000")
+        .limit(10);
+        
+      if (error) throw error;
+      
+      setClients(data || []);
+    } catch (error: any) {
+      console.error("Error fetching clients:", error.message);
+      toast({
+        title: "Errore",
+        description: "Impossibile caricare i clienti. " + error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
-
-  const filteredClients = clients.filter(client =>
-    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (client.email && client.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (client.phone && client.phone.includes(searchTerm))
-  );
-
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    // Clear error when user types
+    if (formErrors[name]) {
+      setFormErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[name];
+        return updated;
+      });
+    }
+  };
+  
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    
+    // Validate first name
+    if (!formData.first_name.trim()) {
+      errors.first_name = "Il nome è obbligatorio";
+    }
+    
+    // Validate last name
+    if (!formData.last_name.trim()) {
+      errors.last_name = "Il cognome è obbligatorio";
+    }
+    
+    // Validate email - Fix the email validation to use a simpler approach
+    if (!formData.email.trim()) {
+      errors.email = "L'email è obbligatoria";
+    } else {
+      // Simple email validation using a more lenient pattern
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email.trim())) {
+        errors.email = "Inserisci un'email valida";
+      }
+    }
+    
+    // Validate phone (optional)
+    if (formData.phone.trim() && !/^\+?[0-9\s]+$/.test(formData.phone)) {
+      errors.phone = "Inserisci un numero di telefono valido";
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      toast({
+        title: "Errore",
+        description: "Correggi gli errori nel form prima di procedere",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      setIsSubmitting(true);
+      
+      // Generate a UUID for the new client
+      const newClientId = crypto.randomUUID();
+      
+      const { error } = await supabase.from("profiles").insert([
+        {
+          id: newClientId,
+          first_name: formData.first_name.trim(),
+          last_name: formData.last_name.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim() || null,
+        }
+      ]);
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Cliente aggiunto",
+        description: "Il cliente è stato aggiunto con successo",
+      });
+      
+      setFormData({
+        first_name: "",
+        last_name: "",
+        email: "",
+        phone: "",
+      });
+      
+      setIsDialogOpen(false);
+      fetchClients();
+    } catch (error: any) {
+      console.error("Error adding client:", error);
+      toast({
+        title: "Errore",
+        description: "Impossibile aggiungere il cliente. " + error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
   return (
-    <div className="space-y-8 animate-slide-in">
+    <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Clienti</h2>
-          <p className="text-muted-foreground">Gestisci le informazioni dei clienti</p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <h1 className="text-3xl font-bold">Clienti</h1>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              <span>Aggiungi Cliente</span>
+            <Button>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Nuovo Cliente
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Aggiungi Nuovo Cliente</DialogTitle>
               <DialogDescription>
-                Inserisci le informazioni del cliente
+                Inserisci i dettagli del nuovo cliente.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="first_name">Nome</Label>
-                  <Input
-                    id="first_name"
-                    value={newClient.first_name}
-                    onChange={(e) => setNewClient({ ...newClient, first_name: e.target.value })}
-                    placeholder="Nome"
-                  />
+            <form onSubmit={handleSubmit}>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="first_name">Nome</Label>
+                    <Input
+                      id="first_name"
+                      name="first_name"
+                      value={formData.first_name}
+                      onChange={handleChange}
+                      className={formErrors.first_name ? "border-red-500" : ""}
+                    />
+                    {formErrors.first_name && (
+                      <p className="text-sm text-red-500">{formErrors.first_name}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="last_name">Cognome</Label>
+                    <Input
+                      id="last_name"
+                      name="last_name"
+                      value={formData.last_name}
+                      onChange={handleChange}
+                      className={formErrors.last_name ? "border-red-500" : ""}
+                    />
+                    {formErrors.last_name && (
+                      <p className="text-sm text-red-500">{formErrors.last_name}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="last_name">Cognome</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
                   <Input
-                    id="last_name"
-                    value={newClient.last_name}
-                    onChange={(e) => setNewClient({ ...newClient, last_name: e.target.value })}
-                    placeholder="Cognome"
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className={formErrors.email ? "border-red-500" : ""}
                   />
+                  {formErrors.email && (
+                    <p className="text-sm text-red-500">{formErrors.email}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Telefono (opzionale)</Label>
+                  <Input
+                    id="phone"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    className={formErrors.phone ? "border-red-500" : ""}
+                  />
+                  {formErrors.phone && (
+                    <p className="text-sm text-red-500">{formErrors.phone}</p>
+                  )}
                 </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={newClient.email}
-                  onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
-                  placeholder="Indirizzo email"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="phone">Telefono</Label>
-                <Input
-                  id="phone"
-                  value={newClient.phone}
-                  onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
-                  placeholder="Numero di telefono"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Annulla
-              </Button>
-              <Button type="button" onClick={handleAddClient}>Aggiungi Cliente</Button>
-            </DialogFooter>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Annulla
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Salvataggio...
+                    </>
+                  ) : (
+                    "Salva Cliente"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="flex flex-col space-y-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Cerca clienti per nome, email o telefono..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        <Tabs defaultValue="all" className="w-full">
-          <TabsList>
-            <TabsTrigger value="all">Tutti i Clienti</TabsTrigger>
-            <TabsTrigger value="recent">Recenti</TabsTrigger>
-            <TabsTrigger value="frequent">Frequenti</TabsTrigger>
-          </TabsList>
-          <TabsContent value="all" className="mt-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle>Elenco Clienti</CardTitle>
-                <CardDescription>
-                  {filteredClients.length} clienti totali
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Caricamento clienti...
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {filteredClients.length > 0 ? (
-                      filteredClients.map((client) => (
-                        <div
-                          key={client.id}
-                          className="flex flex-col sm:flex-row sm:justify-between p-4 rounded-lg appointment-card bg-secondary/50"
-                        >
-                          <div className="flex items-start gap-4 mb-3 sm:mb-0">
-                            <Avatar className="h-10 w-10 border border-border">
-                              <AvatarFallback>{client.avatar}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <h4 className="font-medium">{client.name}</h4>
-                              <div className="flex flex-col sm:flex-row sm:gap-4 text-sm text-muted-foreground">
-                                {client.email && (
-                                  <div className="flex items-center gap-1">
-                                    <Mail className="h-3.5 w-3.5" />
-                                    <span>{client.email}</span>
-                                  </div>
-                                )}
-                                {client.phone && (
-                                  <div className="flex items-center gap-1">
-                                    <Phone className="h-3.5 w-3.5" />
-                                    <span>{client.phone}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex flex-row sm:flex-col items-center sm:items-end gap-4 sm:gap-1">
-                            <div className="text-sm flex items-center gap-1">
-                              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span>Ultima visita: {client.lastVisit}</span>
-                            </div>
-                            <Badge variant="outline" className="rounded-full">
-                              {client.appointmentsCount} appuntamenti
-                            </Badge>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        Nessun cliente corrisponde alla ricerca. Prova parole chiave diverse o aggiungi un nuovo cliente.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-          <TabsContent value="recent" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recenti Clienti</CardTitle>
-                <CardDescription>
-                  Clienti che hanno visitato negli ultimi 30 giorni
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  Visualizzazione recenti clienti in corso di implementazione.
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          <TabsContent value="frequent" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Frequenti Clienti</CardTitle>
-                <CardDescription>
-                  Clienti con il maggior numero di appuntamenti
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  Visualizzazione clienti frequenti in corso di implementazione.
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Elenco Clienti</CardTitle>
+          <CardDescription>
+            Visualizza e gestisci tutti i clienti del salone.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center items-center py-10">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : clients.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">
+              Nessun cliente trovato. Aggiungi il tuo primo cliente!
+            </div>
+          ) : (
+            <Table>
+              <TableCaption>Lista dei clienti registrati</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Cognome</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Telefono</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clients.map((client) => (
+                  <TableRow key={client.id}>
+                    <TableCell>{client.first_name}</TableCell>
+                    <TableCell>{client.last_name}</TableCell>
+                    <TableCell>{client.email}</TableCell>
+                    <TableCell>{client.phone || "-"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
