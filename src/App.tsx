@@ -1,5 +1,5 @@
 
-import { Routes, Route, BrowserRouter, Navigate } from "react-router-dom";
+import { Routes, Route, BrowserRouter } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import AppLayout from "@/components/layout/AppLayout";
@@ -12,7 +12,10 @@ import Clients from "@/pages/Clients";
 import Services from "@/pages/Services";
 import WorkingHours from "@/pages/WorkingHours";
 import Auth from "@/pages/Auth";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
 
 // Protected route component that checks for authentication
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -33,7 +36,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-function AppRoutes() {
+// Separate Routes component to use auth context
+const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/" element={<Index />} />
@@ -57,14 +61,14 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+    <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+      <AuthProvider>
         <BrowserRouter>
           <AppRoutes />
         </BrowserRouter>
         <Toaster position="top-right" richColors />
-      </ThemeProvider>
-    </AuthProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

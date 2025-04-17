@@ -84,6 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (error) {
           console.error("Error getting initial session:", error);
+          setIsLoading(false);
           return;
         }
         
@@ -99,6 +100,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserRole(role);
         }
         
+        // Make sure to set isLoading to false even if no session exists
+        setIsLoading(false);
+        
         // Clean up auth listener on unmount
         return () => {
           console.log("Cleaning up auth subscription");
@@ -106,7 +110,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       } catch (error) {
         console.error("Exception in auth initialization:", error);
-      } finally {
         setIsLoading(false);
       }
     };

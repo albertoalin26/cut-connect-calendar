@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,6 @@ import {
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -51,43 +49,23 @@ const Auth = () => {
   const [activeTab, setActiveTab] = useState("login");
   const [isCreatingDemoUsers, setIsCreatingDemoUsers] = useState(false);
   const { user, signInWithGoogle, signInWithPassword } = useAuth();
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [manualCheckDone, setManualCheckDone] = useState(false);
 
-  // Check authentication status on mount
   useEffect(() => {
     console.log("Auth component mounted, checking session");
+    const timer = setTimeout(() => {
+      setManualCheckDone(true);
+    }, 3000);
     
-    const checkSession = async () => {
-      try {
-        setCheckingAuth(true);
-        console.log("Checking for existing session");
-        
-        const { data } = await supabase.auth.getSession();
-        
-        if (data.session) {
-          console.log("Active session found, redirecting to dashboard", data.session.user.email);
-          navigate("/dashboard", { replace: true });
-        } else {
-          console.log("No active session found, staying on auth page");
-        }
-      } catch (error) {
-        console.error("Error checking session:", error);
-        toast.error("Errore durante la verifica della sessione");
-      } finally {
-        setCheckingAuth(false);
-      }
-    };
-    
-    checkSession();
-  }, [navigate]);
+    return () => clearTimeout(timer);
+  }, []);
 
-  // Redirect if authenticated
   useEffect(() => {
-    if (user && !checkingAuth) {
+    if (user) {
       console.log("User authenticated in state, redirecting to dashboard", user.email);
       navigate("/dashboard", { replace: true });
     }
-  }, [user, navigate, checkingAuth]);
+  }, [user, navigate]);
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -119,7 +97,6 @@ const Auth = () => {
       }
       
       await signInWithPassword(data.email, data.password);
-      // Redirect is handled by the useEffect watching for user changes
     } catch (error: any) {
       console.error("Login exception:", error);
       toast.error("Errore durante il login. Riprova.");
@@ -187,15 +164,12 @@ const Auth = () => {
       
       toast.success("Utenti demo creati con successo!");
       
-      // Auto-fill login form with admin credentials
       loginForm.setValue('email', data.admin.email);
       loginForm.setValue('password', data.admin.password);
       
-      // Display credentials in toast
       toast.info(`Admin: ${data.admin.email} / ${data.admin.password}`);
       toast.info(`Client: ${data.client.email} / ${data.client.password}`);
       
-      // Switch to login tab
       setActiveTab("login");
     } catch (error: any) {
       console.error("Demo users exception:", error);
@@ -222,11 +196,9 @@ const Auth = () => {
     try {
       console.log("Debug: Verificando l'autenticazione...");
       
-      // First, show loading state
       setIsLoading(true);
       toast.info("Tentativo di debug login in corso...");
       
-      // Check current authentication status
       const { data, error } = await supabase.auth.getSession();
       
       if (error) {
@@ -239,13 +211,11 @@ const Auth = () => {
         console.log("Debug - Utente già autenticato:", data.session.user.email);
         toast.info(`Già autenticato come: ${data.session.user.email}`);
 
-        // Try to navigate to dashboard
         navigate("/dashboard", { replace: true });
       } else {
         console.log("Debug - Nessuna sessione attiva");
         toast.info("Nessuna sessione attiva. Tentativo di login automatico...");
         
-        // Insert the demo credentials
         const demoEmail = 'achi@salone.it';
         const demoPassword = 'Password123!';
         
@@ -254,7 +224,6 @@ const Auth = () => {
         
         toast.info(`Credenziali inserite: ${demoEmail} / ${demoPassword}`);
         
-        // Try an automatic login
         try {
           const { data, error } = await supabase.auth.signInWithPassword({
             email: demoEmail,
@@ -268,7 +237,6 @@ const Auth = () => {
             console.log("Debug login successful:", data.user.email);
             toast.success("Debug login riuscito!");
             
-            // Force redirect after short delay
             setTimeout(() => {
               navigate("/dashboard", { replace: true });
             }, 1500);
@@ -286,11 +254,21 @@ const Auth = () => {
     }
   };
 
-  if (checkingAuth) {
+  if (!manualCheckDone && !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <span className="ml-2">Verifica sessione in corso...</span>
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+        <span className="text-muted-foreground">Verifica sessione in corso...</span>
+        <Button 
+          variant="link" 
+          className="mt-4" 
+          onClick={() => {
+            setManualCheckDone(true);
+            toast.info("Verificazione sessione annullata");
+          }}
+        >
+          Annulla verifica
+        </Button>
       </div>
     );
   }
