@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,9 +71,13 @@ const Clients = () => {
     if (!user) return;
 
     try {
+      // Generate a unique ID for the new profile
+      const newId = crypto.randomUUID();
+      
       const { data, error } = await supabase
         .from('profiles')
         .insert([{
+          id: newId, // Add the required ID field
           first_name: newClient.first_name,
           last_name: newClient.last_name,
           email: newClient.email,
