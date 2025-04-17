@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -213,14 +214,22 @@ const Auth = () => {
       if (data.session) {
         console.log("Debug - Utente già autenticato:", data.session.user.email);
         toast.info(`Già autenticato come: ${data.session.user.email}`);
+
+        // Try to navigate to dashboard
+        navigate("/dashboard", { replace: true });
       } else {
         console.log("Debug - Nessuna sessione attiva");
         toast.info("Nessuna sessione attiva. Prova ad accedere");
         
-        // Tentiamo un login con le credenziali demo
+        // Insert the demo credentials
         loginForm.setValue('email', 'achi@salone.it');
         loginForm.setValue('password', 'Password123!');
         toast.info("Credenziali demo inserite. Premi Accedi");
+        
+        // Try a direct login attempt
+        signInWithPassword('achi@salone.it', 'Password123!').then(() => {
+          toast.info("Tentativo di login automatico eseguito");
+        });
       }
     } catch (error) {
       console.error("Debug exception:", error);

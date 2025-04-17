@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Session, User, Provider } from "@supabase/supabase-js";
+import { Session, User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 
 type UserRole = "admin" | "client" | null;
@@ -34,7 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .from("user_roles")
           .select("role")
           .eq("user_id", userId)
-          .maybeSingle(); // Using maybeSingle instead of single to avoid errors if no role exists
+          .maybeSingle();
 
         if (error) {
           console.error("Error fetching user role:", error);
@@ -61,7 +61,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(null);
           setUser(null);
           setUserRole(null);
-          setIsLoading(false);
           return;
         }
         
@@ -94,19 +93,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
+    // Ensure initial session is fetched
     fetchInitialSession();
 
+    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         console.log("Auth state changed:", event, newSession?.user?.email);
         
-        if (event === 'SIGNED_OUT') {
-          // Clear state on sign out
+        if (event === 'SIGNED_OUT' || !newSession) {
+          // Clear state on sign out or when session is null
           setSession(null);
           setUser(null);
           setUserRole(null);
-          console.log("User signed out, state cleared");
+          console.log("User signed out or no session, state cleared");
         } else if (newSession) {
+          console.log("Setting new session:", newSession.user.email);
           setSession(newSession);
           setUser(newSession.user);
           
@@ -182,6 +184,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Attempting to sign in with email/password:", email);
       setIsLoading(true);
       
+      if (!email || !password) {
+        console.error("Email or password missing");
+        toast.error("Email e password sono obbligatori");
+        setIsLoading(false);
+        return;
+      }
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password: password,
@@ -190,6 +199,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) {
         console.error("Login error:", error);
         toast.error(error.message || "Credenziali non valide");
+        return;
+      }
+      
+      if (!data.user || !data.session) {
+        console.error("Login successful but no user or session returned");
+        toast.error("Errore durante l'autenticazione. Riprova.");
         return;
       }
       
