@@ -11,6 +11,7 @@ import NewAppointment from "@/pages/NewAppointment";
 import Clients from "@/pages/Clients";
 import Services from "@/pages/Services";
 import WorkingHours from "@/pages/WorkingHours";
+import Profile from "@/pages/Profile";
 import Auth from "@/pages/Auth";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -53,6 +54,7 @@ const AppRoutes = () => {
         <Route path="/clients" element={<Clients />} />
         <Route path="/services" element={<Services />} />
         <Route path="/working-hours" element={<WorkingHours />} />
+        <Route path="/profile" element={<Profile />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
