@@ -33,7 +33,7 @@ export function useAuthGuard(requireAdmin = false) {
         navigate("/auth");
       } else if (requireAdmin && !isAdmin) {
         toast.error("Non hai i permessi per accedere a questa pagina");
-        navigate("/dashboard");
+        navigate("/appointments");
       }
       setCheckComplete(true);
     }

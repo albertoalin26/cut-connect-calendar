@@ -5,6 +5,7 @@ import { it } from 'date-fns/locale';
 import { Card } from "@/components/ui/card";
 import { CalendarClock, Clock, User } from 'lucide-react';
 import AppointmentBookingModal from '@/components/appointments/AppointmentBookingModal';
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Appointment {
   id: number;
@@ -33,6 +34,7 @@ const WeeklyCalendarView = ({
   isInteractive = false,
   onRefresh
 }: WeeklyCalendarViewProps) => {
+  const { isAdmin } = useAuth();
   const startDate = startOfWeek(date, { locale: it });
   const endDate = endOfWeek(date, { locale: it });
   const days = eachDayOfInterval({ start: startDate, end: endDate });
@@ -122,7 +124,7 @@ const WeeklyCalendarView = ({
                 <div
                   key={day.toString()}
                   className={`min-h-[40px] border rounded-sm p-1 ${isEmpty && isInteractive ? 'cursor-pointer hover:bg-primary/5' : ''}`}
-                  onClick={() => isEmpty && handleSlotClick(day, timeSlot)}
+                  onClick={() => isEmpty && isAdmin && isInteractive && handleSlotClick(day, timeSlot)}
                 >
                   {dayAppointments.map((appointment) => (
                     <div
@@ -130,7 +132,7 @@ const WeeklyCalendarView = ({
                       className="text-xs bg-primary/10 rounded p-2 mb-1 cursor-pointer hover:bg-primary/20 transition-colors flex flex-col gap-1"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (onAppointmentClick) onAppointmentClick(appointment);
+                        if (onAppointmentClick && (isAdmin || !isAdmin)) onAppointmentClick(appointment);
                       }}
                     >
                       <div className="flex items-center justify-between">
@@ -153,8 +155,8 @@ const WeeklyCalendarView = ({
         ))}
       </div>
 
-      {/* Modal di prenotazione */}
-      {selectedSlot && (
+      {/* Modal di prenotazione - solo per admin */}
+      {isAdmin && selectedSlot && (
         <AppointmentBookingModal
           isOpen={bookingModalOpen}
           onClose={() => setBookingModalOpen(false)}

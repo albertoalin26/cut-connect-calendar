@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -43,6 +42,7 @@ import WeeklyCalendarView from '@/components/calendar/WeeklyCalendarView';
 import ClientBookingView from '@/components/appointments/ClientBookingView';
 import AppointmentBookingModal from '@/components/appointments/AppointmentBookingModal';
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuthGuard } from "@/hooks/use-auth-guard";
 
 const fasce_orarie = [
   "9:00", "9:30", "10:00", "10:30", "11:00", 
@@ -52,8 +52,10 @@ const fasce_orarie = [
 ];
 
 const Appointments = () => {
+  // Use the auth guard hook to check if the user is authenticated
+  const { user, isAdmin } = useAuthGuard();
+  
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
   const [date, setDate] = useState<Date>(new Date());
   const [view, setView] = useState("day");
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
@@ -72,9 +74,14 @@ const Appointments = () => {
   const fetchAppointments = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('*');
+      let query = supabase.from('appointments').select('*');
+      
+      // If user is not admin, only fetch their appointments
+      if (!isAdmin && user) {
+        query = query.eq('client_id', user.id);
+      }
+      
+      const { data, error } = await query;
       
       if (error) {
         console.error("Error fetching appointments:", error);
@@ -165,9 +172,11 @@ const Appointments = () => {
 
     if (user) {
       fetchAppointments();
-      fetchClients();
+      if (isAdmin) {
+        fetchClients();
+      }
     }
-  }, [user]);
+  }, [user, isAdmin]);
 
   const handleViewAppointment = (appointment: any) => {
     setSelectedAppointment(appointment);
@@ -175,6 +184,11 @@ const Appointments = () => {
   };
 
   const handleDelete = async (appointmentId: string) => {
+    if (!isAdmin) {
+      toast.error("Solo gli amministratori possono eliminare gli appuntamenti");
+      return;
+    }
+    
     const appointmentToDelete = appointments.find(app => app.id === appointmentId);
     
     if (appointmentToDelete) {
@@ -218,11 +232,21 @@ const Appointments = () => {
   };
 
   const handleEdit = (appointment: any) => {
+    if (!isAdmin) {
+      toast.error("Solo gli amministratori possono modificare gli appuntamenti");
+      return;
+    }
+    
     setSelectedAppointment(appointment);
     setIsEditDialogOpen(true);
   };
 
   const handleUpdate = async (appointmentId: string, updatedData: any) => {
+    if (!isAdmin) {
+      toast.error("Solo gli amministratori possono modificare gli appuntamenti");
+      return;
+    }
+    
     try {
       // First update in Supabase
       const { error } = await supabase
@@ -279,6 +303,11 @@ const Appointments = () => {
 
   // Handler per aprire il modale di prenotazione quando si clicca su uno slot orario vuoto
   const handleTimeSlotClick = (time: string) => {
+    if (!isAdmin) {
+      toast.error("Solo gli amministratori possono prenotare gli appuntamenti in questa vista");
+      return;
+    }
+    
     const timeAppointments = appointments.filter(app => 
       app.time === time && 
       new Date(app.date).getDate() === date.getDate() &&
@@ -333,45 +362,50 @@ const Appointments = () => {
     }
   };
 
-  const renderAppointmentActions = (appointment: any) => (
-    <div className="flex items-center gap-2">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={(e) => {
-          e.stopPropagation();
-          handleEdit(appointment);
-        }}
-      >
-        <Pencil className="h-4 w-4" />
-      </Button>
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Questa azione non può essere annullata. L'appuntamento verrà eliminato permanentemente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => handleDelete(appointment.id)}>
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
+  const renderAppointmentActions = (appointment: any) => {
+    // Only admin can see these actions
+    if (!isAdmin) return null;
+    
+    return (
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleEdit(appointment);
+          }}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Questa azione non può essere annullata. L'appuntamento verrà eliminato permanentemente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogAction onClick={() => handleDelete(appointment.id)}>
+                Elimina
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    );
+  };
 
   const renderTimeSlot = (time: string) => {
     const timeAppointments = appointments.filter(app => 
@@ -422,14 +456,16 @@ const Appointments = () => {
               </Card>
             ))
           ) : (
-            <Button 
-              variant="ghost" 
-              className="w-full h-10 border border-dashed border-muted-foreground/20 text-muted-foreground hover:bg-primary/5"
-              onClick={() => handleTimeSlotClick(time)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Slot disponibile
-            </Button>
+            isAdmin && (
+              <Button 
+                variant="ghost" 
+                className="w-full h-10 border border-dashed border-muted-foreground/20 text-muted-foreground hover:bg-primary/5"
+                onClick={() => handleTimeSlotClick(time)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Slot disponibile
+              </Button>
+            )
           )}
         </div>
       </div>
@@ -450,7 +486,7 @@ const Appointments = () => {
             date={date} 
             appointments={appointments}
             onAppointmentClick={handleViewAppointment}
-            isInteractive={true}
+            isInteractive={isAdmin}
             onRefresh={fetchAppointments}
           />
         </CardContent>
@@ -656,7 +692,7 @@ const Appointments = () => {
         </Tabs>
       )}
 
-      {/* Edit Dialog */}
+      {/* Edit Dialog - solo per admin */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -765,62 +801,73 @@ const Appointments = () => {
             </div>
           )}
           <DialogFooter className="flex sm:justify-between">
+            {isAdmin && (
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-1" 
+                  onClick={() => {
+                    if (selectedAppointment?.clientEmail) {
+                      sendEmailNotification(
+                        selectedAppointment.clientEmail, 
+                        selectedAppointment.client,
+                        selectedAppointment.service,
+                        format(new Date(selectedAppointment.date), "d MMMM yyyy", { locale: it }),
+                        selectedAppointment.time,
+                        "new"
+                      );
+                    } else {
+                      toast.error("Email del cliente non disponibile");
+                    }
+                  }}
+                  disabled={isEmailSending}
+                >
+                  <Mail className="h-4 w-4" />
+                  <span>Invia Promemoria</span>
+                </Button>
+              </div>
+            )}
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="gap-1" 
-                onClick={() => {
-                  if (selectedAppointment?.clientEmail) {
-                    sendEmailNotification(
-                      selectedAppointment.clientEmail, 
-                      selectedAppointment.client,
-                      selectedAppointment.service,
-                      format(new Date(selectedAppointment.date), "d MMMM yyyy", { locale: it }),
-                      selectedAppointment.time,
-                      "new"
-                    );
-                  } else {
-                    toast.error("Email del cliente non disponibile");
-                  }
-                }}
-                disabled={isEmailSending}
-              >
-                <Mail className="h-4 w-4" />
-                <span>Invia Promemoria</span>
-              </Button>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="default" size="sm" onClick={() => handleEdit(selectedAppointment)}>
-                Modifica
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm">
-                    Elimina
+              {isAdmin && (
+                <>
+                  <Button variant="default" size="sm" onClick={() => handleEdit(selectedAppointment)}>
+                    Modifica
                   </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Questa azione non può essere annullata. L'appuntamento verrà eliminato permanentemente.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Annulla</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => handleDelete(selectedAppointment.id)}>
-                      Elimina
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm">
+                        Elimina
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Questa azione non può essere annullata. L'appuntamento verrà eliminato permanentemente.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Annulla</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDelete(selectedAppointment.id)}>
+                          Elimina
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
+              )}
+              {!isAdmin && (
+                <Button variant="outline" size="sm" onClick={() => setIsViewDialogOpen(false)}>
+                  Chiudi
+                </Button>
+              )}
             </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Booking Modal per gli slot vuoti */}
+      {/* Booking Modal per gli slot vuoti - solo per admin */}
       <AppointmentBookingModal
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
