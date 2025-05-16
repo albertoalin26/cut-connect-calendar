@@ -83,6 +83,11 @@ export function AppSidebar() {
       path: "/profile",
       icon: User,
     },
+    {
+      title: "Impostazioni",
+      path: "/settings",
+      icon: Settings,
+    },
   ];
   
   // Seleziona i menu items in base al ruolo

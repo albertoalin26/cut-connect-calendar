@@ -1,7 +1,7 @@
 
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Calendar, Users, Scissors, Menu } from "lucide-react";
+import { Calendar, Users, Scissors, Menu, Settings } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "./AppSidebar";
@@ -25,6 +25,11 @@ export function MobileNavigation() {
       title: "Servizi",
       path: "/services",
       icon: Scissors
+    },
+    {
+      title: "Impostazioni",
+      path: "/settings",
+      icon: Settings
     }
   ];
 
@@ -46,21 +51,6 @@ export function MobileNavigation() {
             <span className="text-xs mt-1">{tab.title}</span>
           </Link>
         ))}
-        
-        {/* Hamburger menu for other items */}
-        <Sheet>
-          <SheetTrigger asChild>
-            <button className="flex flex-col items-center justify-center text-muted-foreground hover:text-foreground">
-              <Menu className="h-5 w-5" />
-              <span className="text-xs mt-1">Menu</span>
-            </button>
-          </SheetTrigger>
-          <SheetContent side="right" className="p-0 w-full sm:w-80">
-            <div className="h-full">
-              <AppSidebar />
-            </div>
-          </SheetContent>
-        </Sheet>
       </div>
     </div>
   );
