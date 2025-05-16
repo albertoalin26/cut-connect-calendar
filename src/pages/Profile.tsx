@@ -1,9 +1,11 @@
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
@@ -12,12 +14,14 @@ import { it } from "date-fns/locale";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
   Calendar as CalendarIcon, 
-  Clock, 
-  Scissors,
+  Phone,
+  Pencil,
   User,
   Mail,
-  Phone,
-  Pencil
+  LogOut,
+  Loader2,
+  Save,
+  X
 } from "lucide-react";
 import {
   Table,
@@ -50,10 +54,19 @@ interface UserProfile {
 const Profile = () => {
   // Use auth guard to protect the page
   useAuthGuard();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    phone: ''
+  });
 
   // Load profile data
   useEffect(() => {
@@ -77,6 +90,11 @@ const Profile = () => {
         }
 
         setProfile(profileData);
+        setFormData({
+          first_name: profileData.first_name || '',
+          last_name: profileData.last_name || '',
+          phone: profileData.phone || ''
+        });
 
         // Fetch appointments
         const { data: appointmentsData, error: appointmentsError } = await supabase
@@ -172,6 +190,84 @@ const Profile = () => {
     }
   };
 
+  // Handle form change
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Start editing profile
+  const handleEditProfile = () => {
+    setIsEditing(true);
+  };
+
+  // Cancel editing profile
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    // Reset form data to current profile values
+    if (profile) {
+      setFormData({
+        first_name: profile.first_name || '',
+        last_name: profile.last_name || '',
+        phone: profile.phone || ''
+      });
+    }
+  };
+
+  // Save profile changes
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    
+    try {
+      setIsSaving(true);
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          phone: formData.phone
+        })
+        .eq('id', user.id);
+        
+      if (error) {
+        console.error("Error updating profile:", error);
+        toast.error("Errore nell'aggiornamento del profilo");
+        return;
+      }
+      
+      // Update local state
+      setProfile(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          phone: formData.phone
+        };
+      });
+      
+      setIsEditing(false);
+      toast.success("Profilo aggiornato con successo");
+    } catch (error) {
+      console.error("Unexpected error saving profile:", error);
+      toast.error("Si è verificato un errore durante il salvataggio");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast.success("Logout effettuato con successo");
+    } catch (error) {
+      console.error("Error during logout:", error);
+      toast.error("Errore durante il logout");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -182,11 +278,21 @@ const Profile = () => {
 
   return (
     <div className="space-y-8 animate-slide-in">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Il Tuo Profilo</h2>
-        <p className="text-muted-foreground">
-          Gestisci le tue informazioni personali e visualizza i tuoi appuntamenti
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Il Tuo Profilo</h2>
+          <p className="text-muted-foreground">
+            Gestisci le tue informazioni personali e visualizza i tuoi appuntamenti
+          </p>
+        </div>
+        <Button 
+          onClick={handleLogout} 
+          variant="outline" 
+          className="flex items-center gap-2"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </Button>
       </div>
       
       <div className="grid md:grid-cols-3 gap-6">
@@ -203,30 +309,117 @@ const Profile = () => {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm">
-                <User className="h-4 w-4 text-primary" />
-                <span className="text-muted-foreground">Nome:</span>
-                <span>{profile?.first_name || "Non specificato"}</span>
+          
+          {isEditing ? (
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="first_name">Nome</Label>
+                  <Input
+                    id="first_name"
+                    name="first_name"
+                    value={formData.first_name}
+                    onChange={handleChange}
+                    className="mt-1"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="last_name">Cognome</Label>
+                  <Input
+                    id="last_name"
+                    name="last_name"
+                    value={formData.last_name}
+                    onChange={handleChange}
+                    className="mt-1"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="phone">Telefono</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className="pl-10 mt-1"
+                      placeholder="Inserisci il tuo numero"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <User className="h-4 w-4 text-primary" />
-                <span className="text-muted-foreground">Cognome:</span>
-                <span>{profile?.last_name || "Non specificato"}</span>
+            </CardContent>
+          ) : (
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">Nome:</span>
+                  <span>{profile?.first_name || "Non specificato"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">Cognome:</span>
+                  <span>{profile?.last_name || "Non specificato"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Mail className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">Email:</span>
+                  <span>{profile?.email}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Phone className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">Telefono:</span>
+                  <span>{profile?.phone || "Non specificato"}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Mail className="h-4 w-4 text-primary" />
-                <span className="text-muted-foreground">Email:</span>
-                <span>{profile?.email}</span>
+            </CardContent>
+          )}
+          
+          <CardFooter>
+            {isEditing ? (
+              <div className="flex gap-2 w-full">
+                <Button 
+                  onClick={handleSaveProfile} 
+                  className="flex-1" 
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Salvataggio...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Salva
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  onClick={handleCancelEdit} 
+                  variant="outline" 
+                  className="flex-1"
+                  disabled={isSaving}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Annulla
+                </Button>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Phone className="h-4 w-4 text-primary" />
-                <span className="text-muted-foreground">Telefono:</span>
-                <span>{profile?.phone || "Non specificato"}</span>
-              </div>
-            </div>
-          </CardContent>
+            ) : (
+              <Button 
+                onClick={handleEditProfile} 
+                variant="outline" 
+                className="w-full"
+              >
+                <Pencil className="h-4 w-4 mr-2" />
+                Modifica Profilo
+              </Button>
+            )}
+          </CardFooter>
         </Card>
         
         {/* Appointments Card */}
