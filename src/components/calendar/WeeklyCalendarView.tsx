@@ -129,23 +129,23 @@ const WeeklyCalendarView = ({
                   {dayAppointments.map((appointment) => (
                     <div
                       key={appointment.id}
-                      className="text-xs bg-primary/10 rounded p-2 mb-1 cursor-pointer hover:bg-primary/20 transition-colors flex flex-col gap-1"
+                      className="text-xs bg-primary/10 rounded p-1.5 mb-1 cursor-pointer hover:bg-primary/20 transition-colors"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (onAppointmentClick && (isAdmin || !isAdmin)) onAppointmentClick(appointment);
                       }}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1 font-medium">
-                          <User className="h-3 w-3" />
-                          <span>{appointment.client}</span>
+                      <div className="flex justify-between items-center">
+                        <div className="font-medium truncate max-w-[100px]">
+                          {appointment.client.split(' ')[0]}
                         </div>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          <span>{appointment.time}</span>
+                        <div className="text-muted-foreground text-[10px] shrink-0">
+                          {appointment.time}
                         </div>
                       </div>
-                      <div className="text-muted-foreground">{appointment.service}</div>
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {appointment.service}
+                      </div>
                     </div>
                   ))}
                 </div>
