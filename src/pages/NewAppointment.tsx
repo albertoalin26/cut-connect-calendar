@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -205,10 +204,14 @@ const NewAppointment = () => {
       let clientName = data.useNewClient ? data.newClientName : data.client;
       
       if (data.useNewClient && data.newClientName) {
+        // Genera un UUID per il nuovo cliente
+        const newClientId = crypto.randomUUID();
+        
         // Create new profile for manually entered client
         const { data: newProfile, error: profileError } = await supabase
           .from('profiles')
           .insert({
+            id: newClientId,
             first_name: data.newClientName,
             email: null
           })

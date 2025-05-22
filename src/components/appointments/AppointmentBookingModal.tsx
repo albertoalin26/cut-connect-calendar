@@ -167,15 +167,17 @@ const AppointmentBookingModal: React.FC<AppointmentBookingModalProps> = ({
       } 
       // Se è admin e ha inserito un nuovo nome cliente
       else if (isAdmin && clientInputType === "input" && formData.clientName) {
-        // Crea un profilo temporaneo per il nuovo cliente
-        const { data: newProfile, error: profileError } = await supabase
+        // Genera un UUID per il nuovo cliente
+        const newClientId = crypto.randomUUID();
+        
+        // Crea un profilo per il nuovo cliente
+        const { error: profileError } = await supabase
           .from('profiles')
           .insert({
+            id: newClientId,
             first_name: formData.clientName,
             email: null
-          })
-          .select('id')
-          .single();
+          });
 
         if (profileError) {
           console.error("Errore nella creazione del profilo cliente:", profileError);
@@ -183,7 +185,7 @@ const AppointmentBookingModal: React.FC<AppointmentBookingModalProps> = ({
           return;
         }
 
-        appointmentData.client_id = newProfile.id;
+        appointmentData.client_id = newClientId;
       } 
       // Se non è admin, usa l'ID utente corrente
       else {
