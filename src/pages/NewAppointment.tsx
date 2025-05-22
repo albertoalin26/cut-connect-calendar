@@ -198,6 +198,7 @@ const NewAppointment = () => {
     }
     
     try {
+      setIsLoading(true);
       // Find or create client profile
       let clientId = user.id; // Default to current user
       let clientEmail = '';
@@ -244,7 +245,7 @@ const NewAppointment = () => {
       const formattedDate = format(data.date, "yyyy-MM-dd");
       
       // Insert appointment into Supabase
-      const { data: newAppointment, error } = await supabase
+      const { error } = await supabase
         .from('appointments')
         .insert({
           client_id: clientId,
@@ -254,9 +255,7 @@ const NewAppointment = () => {
           date: formattedDate,
           notes: data.notes,
           status: 'confermato'
-        })
-        .select()
-        .single();
+        });
       
       if (error) {
         console.error("Errore nella creazione dell'appuntamento:", error);
@@ -282,6 +281,8 @@ const NewAppointment = () => {
     } catch (error) {
       console.error("Errore imprevisto nella creazione dell'appuntamento:", error);
       toast.error("Errore nella creazione dell'appuntamento");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -580,7 +581,7 @@ const NewAppointment = () => {
                     <Button type="button" variant="outline" onClick={() => navigate("/appointments")}>
                       Annulla
                     </Button>
-                    <Button type="submit">
+                    <Button type="submit" disabled={isLoading}>
                       Salva Appuntamento
                     </Button>
                   </div>
