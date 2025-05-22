@@ -94,20 +94,8 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-  
-  /* Fix text selection colors */
-  ::selection {
-    background-color: rgba(0, 122, 255, 0.3);
-    color: inherit;
-  }
-  
-  ::-moz-selection {
-    background-color: rgba(0, 122, 255, 0.3);
-    color: inherit;
-  }
 }
 
-/* ... keep existing code (glass-card, appointment-card, page transitions) */
 .glass-card {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
