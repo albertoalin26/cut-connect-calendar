@@ -208,15 +208,13 @@ const NewAppointment = () => {
         const newClientId = crypto.randomUUID();
         
         // Create new profile for manually entered client
-        const { data: newProfile, error: profileError } = await supabase
+        const { error: profileError } = await supabase
           .from('profiles')
           .insert({
             id: newClientId,
             first_name: data.newClientName,
             email: null
-          })
-          .select()
-          .single();
+          });
           
         if (profileError) {
           console.error("Errore nella creazione del profilo:", profileError);
@@ -224,7 +222,7 @@ const NewAppointment = () => {
           return;
         }
         
-        clientId = newProfile.id;
+        clientId = newClientId;
       } else {
         // Check if client already exists in our profiles
         const existingClient = clients.find(
