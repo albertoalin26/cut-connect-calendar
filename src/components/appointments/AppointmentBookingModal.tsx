@@ -194,7 +194,7 @@ const AppointmentBookingModal: React.FC<AppointmentBookingModalProps> = ({
       
       console.log("Creazione appuntamento con i dati:", appointmentData);
       
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('appointments')
         .insert(appointmentData);
       

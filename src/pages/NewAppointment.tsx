@@ -241,7 +241,7 @@ const NewAppointment = () => {
       }
       
       // Format date for storage
-      const formattedDate = data.date.toISOString();
+      const formattedDate = format(data.date, "yyyy-MM-dd");
       
       // Insert appointment into Supabase
       const { data: newAppointment, error } = await supabase
