@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,8 +37,15 @@ import { it } from "date-fns/locale";
 
 const appointmentSchema = z.object({
   service: z.string().min(1, { message: "Seleziona un servizio" }),
-  clientId: z.string().min(1, { message: "Seleziona un cliente" }),
+  clientId: z.string().optional(),
+  clientName: z.string().min(1, { message: "Nome cliente richiesto" }).optional(),
   notes: z.string().optional(),
+}).refine(data => {
+  // Almeno uno tra clientId o clientName deve essere fornito
+  return data.clientId || data.clientName;
+}, {
+  message: "Seleziona un cliente esistente o inserisci un nuovo nome",
+  path: ["clientName"],
 });
 
 type AppointmentFormValues = z.infer<typeof appointmentSchema>;
@@ -61,12 +69,14 @@ const AppointmentBookingModal: React.FC<AppointmentBookingModalProps> = ({
   const [services, setServices] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [clientInputType, setClientInputType] = useState<"select" | "input">("select");
 
   const form = useForm<AppointmentFormValues>({
     resolver: zodResolver(appointmentSchema),
     defaultValues: {
       service: "",
       clientId: user?.id || "",
+      clientName: "",
       notes: "",
     },
   });
@@ -80,14 +90,14 @@ const AppointmentBookingModal: React.FC<AppointmentBookingModalProps> = ({
           .order('name');
         
         if (error) {
-          console.error("Error fetching services:", error);
+          console.error("Errore nel caricamento dei servizi:", error);
           toast.error("Errore nel caricamento dei servizi");
           return;
         }
         
         setServices(data || []);
       } catch (error) {
-        console.error("Unexpected error fetching services:", error);
+        console.error("Errore imprevisto nel caricamento dei servizi:", error);
       }
     };
     
@@ -101,14 +111,14 @@ const AppointmentBookingModal: React.FC<AppointmentBookingModalProps> = ({
           .order('first_name');
         
         if (error) {
-          console.error("Error fetching clients:", error);
+          console.error("Errore nel caricamento dei clienti:", error);
           toast.error("Errore nel caricamento dei clienti");
           return;
         }
         
         setClients(data || []);
       } catch (error) {
-        console.error("Unexpected error fetching clients:", error);
+        console.error("Errore imprevisto nel caricamento dei clienti:", error);
       }
     };
     
@@ -120,8 +130,12 @@ const AppointmentBookingModal: React.FC<AppointmentBookingModalProps> = ({
       form.reset({
         service: "",
         clientId: user?.id || "",
+        clientName: "",
         notes: "",
       });
+      
+      // Reset client input type to select
+      setClientInputType("select");
     }
   }, [isOpen, isAdmin, user, form]);
 
@@ -138,8 +152,7 @@ const AppointmentBookingModal: React.FC<AppointmentBookingModalProps> = ({
       }
       
       // Prepara i dati dell'appuntamento
-      const appointmentData = {
-        client_id: isAdmin ? formData.clientId : user?.id,
+      const appointmentData: any = {
         service: formData.service,
         duration: selectedService.duration,
         date: format(date, "yyyy-MM-dd"),
@@ -148,14 +161,43 @@ const AppointmentBookingModal: React.FC<AppointmentBookingModalProps> = ({
         status: "in attesa",
       };
       
-      console.log("Creating appointment with data:", appointmentData);
+      // Se è admin e ha selezionato un cliente esistente
+      if (isAdmin && clientInputType === "select" && formData.clientId) {
+        appointmentData.client_id = formData.clientId;
+      } 
+      // Se è admin e ha inserito un nuovo nome cliente
+      else if (isAdmin && clientInputType === "input" && formData.clientName) {
+        // Crea un profilo temporaneo per il nuovo cliente
+        const { data: newProfile, error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            first_name: formData.clientName,
+            email: null
+          })
+          .select('id')
+          .single();
+
+        if (profileError) {
+          console.error("Errore nella creazione del profilo cliente:", profileError);
+          toast.error("Errore nella creazione del profilo cliente");
+          return;
+        }
+
+        appointmentData.client_id = newProfile.id;
+      } 
+      // Se non è admin, usa l'ID utente corrente
+      else {
+        appointmentData.client_id = user?.id;
+      }
+      
+      console.log("Creazione appuntamento con i dati:", appointmentData);
       
       const { data, error } = await supabase
         .from('appointments')
         .insert(appointmentData);
       
       if (error) {
-        console.error("Error creating appointment:", error);
+        console.error("Errore nella creazione dell'appuntamento:", error);
         toast.error("Errore nella creazione dell'appuntamento");
         return;
       }
@@ -168,10 +210,20 @@ const AppointmentBookingModal: React.FC<AppointmentBookingModalProps> = ({
         onSuccess();
       }
     } catch (error: any) {
-      console.error("Unexpected error creating appointment:", error);
+      console.error("Errore imprevisto nella creazione dell'appuntamento:", error);
       toast.error(error.message || "Si è verificato un errore durante la prenotazione");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const toggleClientInputType = () => {
+    if (clientInputType === "select") {
+      setClientInputType("input");
+      form.setValue("clientId", undefined);
+    } else {
+      setClientInputType("select");
+      form.setValue("clientName", "");
     }
   };
 
@@ -187,34 +239,61 @@ const AppointmentBookingModal: React.FC<AppointmentBookingModalProps> = ({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             {isAdmin && (
-              <FormField
-                control={form.control}
-                name="clientId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cliente</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <FormItem>
+                <div className="flex items-center justify-between mb-2">
+                  <FormLabel>Cliente</FormLabel>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={toggleClientInputType}
+                  >
+                    {clientInputType === "select" ? "Nuovo cliente" : "Scegli cliente"}
+                  </Button>
+                </div>
+
+                {clientInputType === "select" ? (
+                  <FormField
+                    control={form.control}
+                    name="clientId"
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleziona un cliente" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {clients.map((client) => (
+                            <SelectItem 
+                              key={client.id} 
+                              value={client.id}
+                            >
+                              {client.first_name || ''} {client.last_name || ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                ) : (
+                  <FormField
+                    control={form.control}
+                    name="clientName"
+                    render={({ field }) => (
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleziona un cliente" />
-                        </SelectTrigger>
+                        <Input 
+                          placeholder="Inserisci il nome del cliente" 
+                          {...field} 
+                        />
                       </FormControl>
-                      <SelectContent>
-                        {clients.map((client) => (
-                          <SelectItem 
-                            key={client.id} 
-                            value={client.id}
-                          >
-                            {client.first_name || ''} {client.last_name || ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
+                    )}
+                  />
                 )}
-              />
+                <FormMessage />
+              </FormItem>
             )}
+
             <FormField
               control={form.control}
               name="service"

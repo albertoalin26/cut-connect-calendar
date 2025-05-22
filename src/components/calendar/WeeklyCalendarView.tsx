@@ -136,14 +136,14 @@ const WeeklyCalendarView = ({
                       }}
                     >
                       <div className="flex justify-between items-center">
-                        <div className="font-medium truncate max-w-[100px]">
+                        <div className="font-medium truncate max-w-[70px]">
                           {appointment.client.split(' ')[0]}
                         </div>
                         <div className="text-muted-foreground text-[10px] shrink-0">
                           {appointment.time}
                         </div>
                       </div>
-                      <div className="text-[10px] text-muted-foreground truncate">
+                      <div className="text-[10px] text-muted-foreground truncate max-w-[120px]">
                         {appointment.service}
                       </div>
                     </div>

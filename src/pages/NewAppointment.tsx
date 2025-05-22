@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
-import { CalendarIcon, Scissors, ArrowLeft, Clock, User } from "lucide-react";
+import { CalendarIcon, Scissors, ArrowLeft, Clock, User, PlusCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -48,11 +48,13 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const appointmentFormSchema = z.object({
   client: z.string().min(2, { message: "Il nome del cliente è obbligatorio" }),
+  newClientName: z.string().optional(),
   service: z.string().min(1, { message: "Il servizio è obbligatorio" }),
   date: z.date({ required_error: "La data dell'appuntamento è obbligatoria" }),
   time: z.string().min(1, { message: "L'orario dell'appuntamento è obbligatorio" }),
   duration: z.string().min(1, { message: "La durata è obbligatoria" }),
   notes: z.string().optional(),
+  useNewClient: z.boolean().default(false),
 });
 
 const timeSlots = [
@@ -77,12 +79,15 @@ const NewAppointment = () => {
   const [services, setServices] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [useNewClient, setUseNewClient] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
   
   const form = useForm<FormData>({
     resolver: zodResolver(appointmentFormSchema),
     defaultValues: {
       notes: "",
       date: new Date(),
+      useNewClient: false,
     },
   });
 
@@ -97,7 +102,7 @@ const NewAppointment = () => {
           .select('*');
         
         if (error) {
-          console.error("Error fetching clients:", error);
+          console.error("Errore nel caricamento dei clienti:", error);
           toast.error("Errore nel caricamento dei clienti");
           return;
         }
@@ -111,7 +116,7 @@ const NewAppointment = () => {
         
         setClients(formattedClients);
       } catch (error) {
-        console.error("Unexpected error fetching clients:", error);
+        console.error("Errore imprevisto nel caricamento dei clienti:", error);
       }
     };
 
@@ -122,7 +127,7 @@ const NewAppointment = () => {
           .select('*');
         
         if (error) {
-          console.error("Error fetching services:", error);
+          console.error("Errore nel caricamento dei servizi:", error);
           toast.error("Errore nel caricamento dei servizi");
           return;
         }
@@ -142,7 +147,7 @@ const NewAppointment = () => {
           setServices(data);
         }
       } catch (error) {
-        console.error("Unexpected error fetching services:", error);
+        console.error("Errore imprevisto nel caricamento dei servizi:", error);
       } finally {
         setIsLoading(false);
       }
@@ -197,21 +202,41 @@ const NewAppointment = () => {
       // Find or create client profile
       let clientId = user.id; // Default to current user
       let clientEmail = '';
-      let clientName = data.client;
+      let clientName = data.useNewClient ? data.newClientName : data.client;
       
-      // Check if client already exists in our profiles
-      const existingClient = clients.find(
-        client => client.name.toLowerCase() === data.client.toLowerCase()
-      );
-      
-      if (existingClient) {
-        clientId = existingClient.id;
-        clientEmail = existingClient.email;
-        clientName = existingClient.name;
+      if (data.useNewClient && data.newClientName) {
+        // Create new profile for manually entered client
+        const { data: newProfile, error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            first_name: data.newClientName,
+            email: null
+          })
+          .select()
+          .single();
+          
+        if (profileError) {
+          console.error("Errore nella creazione del profilo:", profileError);
+          toast.error("Errore nella creazione del nuovo cliente");
+          return;
+        }
+        
+        clientId = newProfile.id;
       } else {
-        // Create a new profile if client doesn't exist
-        // This would be done in a real app, but for simplicity we'll just use the current user
-        toast.info("Cliente non trovato nel database, utilizzo dell'utente corrente");
+        // Check if client already exists in our profiles
+        const existingClient = clients.find(
+          client => client.name.toLowerCase() === data.client.toLowerCase()
+        );
+        
+        if (existingClient) {
+          clientId = existingClient.id;
+          clientEmail = existingClient.email;
+          clientName = existingClient.name;
+        } else {
+          // Create a new profile if client doesn't exist
+          // This would be done in a real app, but for simplicity we'll just use the current user
+          toast.info("Cliente non trovato nel database, utilizzo dell'utente corrente");
+        }
       }
       
       // Format date for storage
@@ -233,7 +258,7 @@ const NewAppointment = () => {
         .single();
       
       if (error) {
-        console.error("Error creating appointment:", error);
+        console.error("Errore nella creazione dell'appuntamento:", error);
         toast.error("Errore nella creazione dell'appuntamento");
         return;
       }
@@ -254,7 +279,7 @@ const NewAppointment = () => {
       // Navigate back to appointments page
       navigate("/appointments");
     } catch (error) {
-      console.error("Unexpected error creating appointment:", error);
+      console.error("Errore imprevisto nella creazione dell'appuntamento:", error);
       toast.error("Errore nella creazione dell'appuntamento");
     }
   };
@@ -262,6 +287,18 @@ const NewAppointment = () => {
   const filteredClients = clients.filter(client => 
     client.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const toggleNewClientMode = () => {
+    setUseNewClient(!useNewClient);
+    form.setValue('useNewClient', !useNewClient);
+    
+    if (!useNewClient) {
+      setSearchTerm("");
+      setSelectedClient(null);
+    } else {
+      setNewClientName("");
+    }
+  };
 
   return (
     <div className="space-y-6 animate-slide-in">
@@ -301,55 +338,91 @@ const NewAppointment = () => {
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                   <div className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="client"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Cliente</FormLabel>
-                          <div className="space-y-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <FormLabel>Cliente</FormLabel>
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={toggleNewClientMode}
+                        className="text-xs"
+                      >
+                        {useNewClient ? "Seleziona cliente esistente" : "Inserisci nuovo cliente"}
+                      </Button>
+                    </div>
+                    
+                    {useNewClient ? (
+                      <FormField
+                        control={form.control}
+                        name="newClientName"
+                        render={({ field }) => (
+                          <FormItem>
                             <div className="flex items-center">
                               <User className="mr-2 h-4 w-4 text-muted-foreground" />
-                              <Input 
-                                placeholder="Cerca clienti o inserisci un nuovo nome" 
-                                value={searchTerm}
+                              <Input
+                                placeholder="Inserisci il nome del nuovo cliente" 
+                                value={field.value}
                                 onChange={e => {
-                                  setSearchTerm(e.target.value);
                                   field.onChange(e.target.value);
-                                  setSelectedClient(null);
+                                  setNewClientName(e.target.value);
                                 }}
                                 className="flex-1"
                               />
                             </div>
-                            {searchTerm && (
-                              <div className="bg-background border rounded-md max-h-40 overflow-y-auto">
-                                {filteredClients.length > 0 ? (
-                                  filteredClients.map(client => (
-                                    <div 
-                                      key={client.id} 
-                                      className="p-2 cursor-pointer hover:bg-accent"
-                                      onClick={() => {
-                                        field.onChange(client.name);
-                                        setSearchTerm(client.name);
-                                        setSelectedClient(client);
-                                      }}
-                                    >
-                                      <div className="font-medium">{client.name}</div>
-                                      <div className="text-xs text-muted-foreground">{client.phone} • {client.email}</div>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div className="p-2 text-muted-foreground text-sm">
-                                    Nessun cliente trovato. Usa questo nome per creare un nuovo cliente.
-                                  </div>
-                                )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    ) : (
+                      <FormField
+                        control={form.control}
+                        name="client"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="space-y-2">
+                              <div className="flex items-center">
+                                <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                                <Input 
+                                  placeholder="Cerca clienti" 
+                                  value={searchTerm}
+                                  onChange={e => {
+                                    setSearchTerm(e.target.value);
+                                    field.onChange(e.target.value);
+                                    setSelectedClient(null);
+                                  }}
+                                  className="flex-1"
+                                />
                               </div>
-                            )}
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                              {searchTerm && (
+                                <div className="bg-background border rounded-md max-h-40 overflow-y-auto">
+                                  {filteredClients.length > 0 ? (
+                                    filteredClients.map(client => (
+                                      <div 
+                                        key={client.id} 
+                                        className="p-2 cursor-pointer hover:bg-accent"
+                                        onClick={() => {
+                                          field.onChange(client.name);
+                                          setSearchTerm(client.name);
+                                          setSelectedClient(client);
+                                        }}
+                                      >
+                                        <div className="font-medium">{client.name}</div>
+                                        <div className="text-xs text-muted-foreground">{client.phone} • {client.email}</div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="p-2 text-muted-foreground text-sm">
+                                      Nessun cliente trovato
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     <FormField
                       control={form.control}
