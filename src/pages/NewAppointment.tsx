@@ -193,6 +193,21 @@ const NewAppointment = () => {
       return;
     }
     
+    // Convert duration string to minutes
+    const convertDurationToMinutes = (duration: string): number => {
+      if (duration.includes("15 min")) return 15;
+      if (duration.includes("30 min")) return 30;
+      if (duration.includes("45 min")) return 45;
+      if (duration.includes("1 ora")) return 60;
+      if (duration.includes("1.5 ore")) return 90;
+      if (duration.includes("2 ore")) return 120;
+      if (duration.includes("2.5 ore")) return 150;
+      if (duration.includes("3 ore")) return 180;
+      return 60;
+    };
+
+    const durationInMinutes = convertDurationToMinutes(data.duration);
+    
     try {
       // Find or create client profile
       let clientId = user.id; // Default to current user

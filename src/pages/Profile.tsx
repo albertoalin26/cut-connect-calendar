@@ -35,12 +35,15 @@ import { toast } from "sonner";
 
 interface Appointment {
   id: string;
+  client_id: string;
   date: string;
   time: string;
   service: string;
   status: string;
-  duration: string;
+  duration: number;
   notes?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface UserProfile {

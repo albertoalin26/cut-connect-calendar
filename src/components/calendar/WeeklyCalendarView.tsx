@@ -11,7 +11,7 @@ interface Appointment {
   id: number;
   client: string;
   service: string;
-  duration: string;
+  duration: number;
   time: string;
   status: string;
   avatar: string;
