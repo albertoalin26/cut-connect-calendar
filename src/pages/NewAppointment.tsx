@@ -238,7 +238,7 @@ const NewAppointment = () => {
         .insert({
           client_id: clientId,
           service: data.service,
-          duration: data.duration,
+          duration: durationInMinutes,
           time: data.time,
           date: formattedDate,
           notes: data.notes,

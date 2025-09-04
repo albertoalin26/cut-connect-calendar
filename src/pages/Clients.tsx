@@ -154,16 +154,14 @@ const Clients = () => {
       // Generate a UUID for the new client
       const newClientId = crypto.randomUUID();
       
-      const { error } = await supabase.from("profiles").insert([
-        {
-          id: newClientId,
-          user_id: newClientId, // Using same ID for user_id as this is a manual client creation
-          first_name: formData.first_name.trim(),
-          last_name: formData.last_name.trim(),
-          email: formData.email.trim(),
-          phone: formData.phone.trim() || null,
-        }
-      ]);
+      const { error } = await supabase.from("profiles").insert({
+        id: newClientId,
+        user_id: newClientId, // Using same ID for user_id as this is a manual client creation
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim() || null,
+      });
       
       if (error) throw error;
       
