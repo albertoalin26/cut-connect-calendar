@@ -68,11 +68,12 @@ const Clients = () => {
   const fetchClients = async () => {
     try {
       setIsLoading(true);
+      
+      // Fetch all profiles for admin users - RLS policies will handle access control
       const { data, error } = await supabase
         .from("profiles")
-        .select("*")
-        .eq("id", "00000000-0000-0000-0000-000000000000")
-        .limit(10);
+        .select("id, user_id, first_name, last_name, email, phone, created_at")
+        .order("created_at", { ascending: false });
         
       if (error) throw error;
       
