@@ -51,7 +51,6 @@ const appointmentFormSchema = z.object({
   service: z.string().min(1, { message: "Il servizio è obbligatorio" }),
   date: z.date({ required_error: "La data dell'appuntamento è obbligatoria" }),
   time: z.string().min(1, { message: "L'orario dell'appuntamento è obbligatorio" }),
-  duration: z.string().min(1, { message: "La durata è obbligatoria" }),
   notes: z.string().optional(),
 });
 
@@ -62,9 +61,6 @@ const timeSlots = [
   "16:30", "17:00", "17:30", "18:00"
 ];
 
-const durations = [
-  "15 min", "30 min", "45 min", "1 ora", "1.5 ore", "2 ore", "2.5 ore", "3 ore"
-];
 
 type FormData = z.infer<typeof appointmentFormSchema>;
 
@@ -193,20 +189,31 @@ const NewAppointment = () => {
       return;
     }
     
-    // Convert duration string to minutes
-    const convertDurationToMinutes = (duration: string): number => {
-      if (duration.includes("15 min")) return 15;
-      if (duration.includes("30 min")) return 30;
-      if (duration.includes("45 min")) return 45;
-      if (duration.includes("1 ora")) return 60;
-      if (duration.includes("1.5 ore")) return 90;
-      if (duration.includes("2 ore")) return 120;
-      if (duration.includes("2.5 ore")) return 150;
-      if (duration.includes("3 ore")) return 180;
-      return 60;
-    };
-
-    const durationInMinutes = convertDurationToMinutes(data.duration);
+    // Find the selected service to get its duration
+    const selectedService = services.find(service => service.name === data.service);
+    
+    if (!selectedService) {
+      toast.error("Servizio non trovato");
+      return;
+    }
+    
+    // Convert duration to minutes if it's a string from default services
+    let durationInMinutes: number;
+    if (typeof selectedService.duration === 'string') {
+      // Convert string duration to minutes for default services
+      if (selectedService.duration.includes("15 min")) durationInMinutes = 15;
+      else if (selectedService.duration.includes("30 min")) durationInMinutes = 30;
+      else if (selectedService.duration.includes("45 min")) durationInMinutes = 45;
+      else if (selectedService.duration.includes("1 ora")) durationInMinutes = 60;
+      else if (selectedService.duration.includes("1.5 ore")) durationInMinutes = 90;
+      else if (selectedService.duration.includes("2 ore")) durationInMinutes = 120;
+      else if (selectedService.duration.includes("2.5 ore")) durationInMinutes = 150;
+      else if (selectedService.duration.includes("3 ore")) durationInMinutes = 180;
+      else durationInMinutes = 60; // fallback
+    } else {
+      // Duration is already a number from database
+      durationInMinutes = selectedService.duration;
+    }
     
     try {
       // Find or create client profile
@@ -470,33 +477,6 @@ const NewAppointment = () => {
                       />
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name="duration"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Durata</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <div className="flex items-center gap-2">
-                                  <Clock className="h-4 w-4 text-muted-foreground" />
-                                  <SelectValue placeholder="Seleziona la durata" />
-                                </div>
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {durations.map((duration) => (
-                                <SelectItem key={duration} value={duration}>
-                                  {duration}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
 
                     <FormField
                       control={form.control}
