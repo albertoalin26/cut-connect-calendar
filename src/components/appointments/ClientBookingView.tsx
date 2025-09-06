@@ -45,8 +45,11 @@ const ClientBookingView = () => {
       // Ottenere tutti gli appuntamenti per il giorno selezionato
       const { data: appointments, error } = await supabase
         .from('appointments')
-        .select('time')
-        .eq('date', dateString);
+        .select('time, status')
+        .eq('date', dateString)
+        .neq('status', 'cancellato'); // Escludi appuntamenti cancellati
+      
+      console.log("Fetched appointments for date", dateString, ":", appointments);
       
       if (error) {
         console.error("Error fetching appointments:", error);
@@ -56,6 +59,7 @@ const ClientBookingView = () => {
 
       // Ottieni l'elenco degli orari già prenotati
       const bookedSlots = appointments?.map(app => app.time) || [];
+      console.log("Booked slots:", bookedSlots);
       
       // Array con tutti gli slot orari possibili (9:00 - 18:00, ogni 30 minuti)
       const allTimeSlots = [
@@ -81,12 +85,15 @@ const ClientBookingView = () => {
     if (!user) return;
     
     try {
+      console.log("Fetching appointments for user:", user.id);
       const { data, error } = await supabase
         .from('appointments')
         .select('*')
         .eq('client_id', user.id)
         .order('date', { ascending: true })
         .order('time', { ascending: true });
+      
+      console.log("User appointments result:", { data, error });
       
       if (error) {
         console.error("Error fetching my appointments:", error);

@@ -108,7 +108,7 @@ const Appointments = () => {
           const { data: profileData, error: profileError } = await supabase
             .from('profiles')
             .select('*')
-            .eq('id', appointment.client)
+            .eq('user_id', appointment.client)
             .single();
           
           if (profileError) {

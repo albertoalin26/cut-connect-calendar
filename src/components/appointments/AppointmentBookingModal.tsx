@@ -154,12 +154,15 @@ const AppointmentBookingModal: React.FC<AppointmentBookingModalProps> = ({
         .from('appointments')
         .insert(appointmentData);
       
+      console.log("Insert result:", { data, error });
+      
       if (error) {
         console.error("Error creating appointment:", error);
-        toast.error("Errore nella creazione dell'appuntamento");
+        toast.error(`Errore nella creazione dell'appuntamento: ${error.message}`);
         return;
       }
       
+      console.log("Appointment created successfully:", data);
       toast.success("Appuntamento prenotato con successo!");
       form.reset();
       onClose();
