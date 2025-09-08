@@ -26,8 +26,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
-
     const fetchUserRole = async (userId: string) => {
       try {
         console.log("Fetching user role for userId:", userId);
@@ -51,82 +49,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    const initializeAuth = async () => {
+    console.log("Setting up auth state listener...");
+    
+    // Set up the auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log("Auth state changed:", event, session?.user?.email);
+        
+        if (event === 'SIGNED_OUT' || !session) {
+          console.log("User signed out or no session, clearing state");
+          setSession(null);
+          setUser(null);
+          setUserRole(null);
+        } else if (session) {
+          console.log("Setting new session:", session.user.email);
+          setSession(session);
+          setUser(session.user);
+          
+          // Fetch user role
+          const role = await fetchUserRole(session.user.id);
+          setUserRole(role);
+          console.log("Updated user role:", role);
+        }
+        
+        setIsLoading(false);
+      }
+    );
+    
+    // Get initial session
+    const getInitialSession = async () => {
       try {
-        console.log("Initializing authentication...");
-        
-        // Set up the auth state change listener
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, newSession) => {
-            if (!mounted) return;
-            
-            console.log("Auth state changed:", event, newSession?.user?.email);
-            
-            if (event === 'SIGNED_OUT' || !newSession) {
-              console.log("User signed out or no session, clearing state");
-              setSession(null);
-              setUser(null);
-              setUserRole(null);
-              setIsLoading(false);
-            } else if (newSession) {
-              console.log("Setting new session:", newSession.user.email);
-              setSession(newSession);
-              setUser(newSession.user);
-              
-              // Fetch user role
-              const role = await fetchUserRole(newSession.user.id);
-              if (mounted) {
-                setUserRole(role);
-                setIsLoading(false);
-              }
-              console.log("Updated user role:", role);
-            }
-          }
-        );
-        
-        // Check for existing session
+        console.log("Getting initial session...");
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error("Error getting initial session:", error);
-          if (mounted) setIsLoading(false);
+          setIsLoading(false);
           return;
         }
         
         console.log("Initial session check:", data.session ? "Session exists" : "No session");
         
-        if (data.session && mounted) {
+        if (data.session) {
           console.log("User authenticated:", data.session.user.email);
-          
           setSession(data.session);
           setUser(data.session.user);
           
           const role = await fetchUserRole(data.session.user.id);
-          if (mounted) {
-            setUserRole(role);
-            setIsLoading(false);
-          }
-        } else if (mounted) {
-          // No session exists
-          setIsLoading(false);
+          setUserRole(role);
         }
         
-        // Clean up auth listener on unmount
-        return () => {
-          mounted = false;
-          console.log("Cleaning up auth subscription");
-          subscription.unsubscribe();
-        };
+        setIsLoading(false);
       } catch (error) {
-        console.error("Exception in auth initialization:", error);
-        if (mounted) setIsLoading(false);
+        console.error("Exception getting initial session:", error);
+        setIsLoading(false);
       }
     };
-
-    initializeAuth();
     
+    getInitialSession();
+    
+    // Cleanup function
     return () => {
-      mounted = false;
+      console.log("Cleaning up auth subscription");
+      subscription.unsubscribe();
     };
   }, []);
 
