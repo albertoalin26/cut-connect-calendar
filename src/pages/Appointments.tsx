@@ -70,18 +70,27 @@ const Appointments = () => {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
 
-  // Fetch appointments from Supabase
   const fetchAppointments = async () => {
     setIsLoading(true);
     try {
-      let query = supabase.from('appointments').select('*');
+      console.log("Fetching appointments - isAdmin:", isAdmin, "user:", user?.id);
+      
+      let query = supabase
+        .from('appointments')
+        .select('*')
+        .order('date', { ascending: true })
+        .order('time', { ascending: true });
       
       // If user is not admin, only fetch their appointments
       if (!isAdmin && user) {
         query = query.eq('client_id', user.id);
+        console.log("Non-admin user: filtering by client_id =", user.id);
+      } else if (isAdmin) {
+        console.log("Admin user: fetching all appointments");
       }
       
       const { data, error } = await query;
+      console.log("Appointments query result:", { data, error, count: data?.length });
       
       if (error) {
         console.error("Error fetching appointments:", error);
@@ -89,36 +98,31 @@ const Appointments = () => {
         return;
       }
       
-      // Transform appointments to match the expected format
-      const formattedAppointments = data.map(appointment => ({
-        id: appointment.id,
-        client: appointment.client_id, // Will be replaced with profile info
-        service: appointment.service,
-        duration: appointment.duration,
-        time: appointment.time,
-        status: appointment.status,
-        avatar: "CL",
-        date: new Date(appointment.date),
-        notes: appointment.notes || ''
-      }));
-      
-      // Fetch client profiles for each appointment
-      const clientProfiles = await Promise.all(
-        formattedAppointments.map(async (appointment) => {
+      // Transform appointments and fetch client profiles
+      const formattedAppointments = await Promise.all(
+        (data || []).map(async (appointment) => {
+          // Fetch client profile separately
           const { data: profileData, error: profileError } = await supabase
             .from('profiles')
             .select('*')
-            .eq('user_id', appointment.client)
+            .eq('user_id', appointment.client_id)
             .single();
           
-          if (profileError) {
-            console.error("Error fetching client profile:", profileError);
-            return appointment;
+          // Use profile data if available
+          let clientName = 'Cliente Sconosciuto';
+          let clientEmail = '';
+          
+          if (!profileError && profileData) {
+            if (profileData.first_name || profileData.last_name) {
+              clientName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
+            } else if (profileData.email) {
+              clientName = profileData.email;
+            }
+            clientEmail = profileData.email || '';
           }
           
           // Create initials for avatar
-          const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
-          const initials = fullName
+          const initials = clientName
             .split(' ')
             .map(n => n[0])
             .join('')
@@ -126,15 +130,23 @@ const Appointments = () => {
             .substring(0, 2) || 'CL';
           
           return {
-            ...appointment,
-            client: fullName || 'Cliente Sconosciuto',
-            clientEmail: profileData.email,
-            avatar: initials
+            id: appointment.id,
+            client: clientName,
+            clientEmail: clientEmail,
+            service: appointment.service,
+            duration: appointment.duration,
+            time: appointment.time,
+            status: appointment.status,
+            avatar: initials,
+            date: new Date(appointment.date),
+            notes: appointment.notes || '',
+            client_id: appointment.client_id
           };
         })
       );
       
-      setAppointments(clientProfiles);
+      console.log("Final formatted appointments:", formattedAppointments.length, "appointments");
+      setAppointments(formattedAppointments);
     } catch (error) {
       console.error("Unexpected error fetching appointments:", error);
       toast.error("Errore nel caricamento degli appuntamenti");
@@ -323,7 +335,10 @@ const Appointments = () => {
   };
 
   const handleBookingSuccess = () => {
-    fetchAppointments();
+    console.log("Booking success - refreshing appointments");
+    fetchAppointments(); // Ricarica gli appuntamenti
+    setIsBookingModalOpen(false);
+    setSelectedTimeSlot(null);
   };
 
   const sendEmailNotification = async (

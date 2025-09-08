@@ -43,11 +43,13 @@ const ClientBookingView = () => {
       const dateString = format(date, "yyyy-MM-dd");
       
       // Ottenere tutti gli appuntamenti per il giorno selezionato
+      console.log("Checking appointments for date:", dateString);
+      
       const { data: appointments, error } = await supabase
         .from('appointments')
         .select('time, status')
         .eq('date', dateString)
-        .neq('status', 'cancellato'); // Escludi appuntamenti cancellati
+        .in('status', ['confermato', 'in attesa']); // Solo appuntamenti attivi
       
       console.log("Fetched appointments for date", dateString, ":", appointments);
       
@@ -63,7 +65,7 @@ const ClientBookingView = () => {
       
       // Array con tutti gli slot orari possibili (9:00 - 18:00, ogni 30 minuti)
       const allTimeSlots = [
-        "9:00", "9:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", 
+        "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", 
         "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", 
         "17:00", "17:30"
       ];
@@ -127,8 +129,18 @@ const ClientBookingView = () => {
 
   // Aggiorna i dati dopo una prenotazione riuscita
   const handleBookingSuccess = () => {
-    fetchAvailableSlots(selectedDate);
+    console.log("Booking success callback received - refreshing data");
+    
+    // Ricarica gli slot disponibili per la data selezionata
+    if (selectedDate) {
+      fetchAvailableSlots(selectedDate);
+    }
+    
+    // Ricarica gli appuntamenti dell'utente
     fetchMyAppointments();
+    
+    // Chiudi il modal
+    setBookingModalOpen(false);
   };
 
   // Gestisce la cancellazione di un appuntamento
